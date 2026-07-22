@@ -36,13 +36,45 @@ const PRODUCTS = [
   },
 ]
 
+const OG_TITLE = 'Auto Company — Build tools. Ship products.'
+const OG_DESC = 'Auto Company builds developer tools and content creation products. ReqDump, SnapOG, and OmniPost.'
+const OG_IMAGE = 'https://snapog-production.up.railway.app/preview?title=Auto+Company&description=Build+tools.+Ship+products.&template=default&theme=dark'
+const SITE_URL = 'https://company-site-production-9f58.up.railway.app'
+
 const PAGE = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Auto Company — Build tools. Ship products.</title>
-<meta name="description" content="Auto Company builds developer tools and content creation products. ReqDump, SnapOG, and OmniPost." />
+<title>${OG_TITLE}</title>
+<meta name="description" content="${OG_DESC}" />
+<link rel="canonical" href="${SITE_URL}" />
+<meta property="og:title" content="${OG_TITLE}" />
+<meta property="og:description" content="${OG_DESC}" />
+<meta property="og:image" content="${OG_IMAGE}" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="${SITE_URL}" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="${OG_TITLE}" />
+<meta name="twitter:description" content="${OG_DESC}" />
+<meta name="twitter:image" content="${OG_IMAGE}" />
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "Auto Company",
+  "description": "${OG_DESC}",
+  "url": "${SITE_URL}",
+  "knowsAbout": ["Developer Tools", "HTTP Inspection", "OG Image Generation", "Content Creation"],
+  "owns": [
+    { "@type": "WebApplication", "name": "ReqDump", "description": "HTTP request inspector for developers" },
+    { "@type": "WebApplication", "name": "SnapOG", "description": "OG image generation API" },
+    { "@type": "WebApplication", "name": "OmniPost", "description": "Cross-platform content studio" }
+  ]
+}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
@@ -524,6 +556,30 @@ init();
 
 app.get('/', c => c.html(PAGE))
 app.get('/health', c => c.json({ ok: true, ts: new Date().toISOString() }))
+
+app.get('/sitemap.xml', c => {
+  const urls = [
+    { loc: SITE_URL, priority: '1.0', changefreq: 'weekly' },
+    { loc: `${SITE_URL}/#products`, priority: '0.8', changefreq: 'weekly' },
+  ]
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls.map(u => `  <url>
+    <loc>${u.loc}</loc>
+    <priority>${u.priority}</priority>
+    <changefreq>${u.changefreq}</changefreq>
+  </url>`).join('\n')}
+</urlset>`
+  return c.newResponse(xml, 200, { 'Content-Type': 'application/xml' })
+})
+
+app.get('/robots.txt', c => {
+  const text = `User-agent: *
+Allow: /
+Sitemap: ${SITE_URL}/sitemap.xml
+`
+  return c.newResponse(text, 200, { 'Content-Type': 'text/plain' })
+})
 
 const PORT = parseInt(process.env.PORT || '3000', 10)
 console.log(`Company site starting on port ${PORT}`)
