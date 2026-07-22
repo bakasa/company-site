@@ -46,6 +46,76 @@ const SITE_URL = 'https://company-site-production-9f58.up.railway.app'
 
 const BLOG_POSTS = [
   {
+    slug: 'self-host-request-inspector-security',
+    title: 'Stop Pasting Webhooks Into Strangers\' Services — Self-Host Your Request Inspector',
+    excerpt: 'Every time you paste a webhook URL from a public service, you\'re sending sensitive data through someone else\'s infrastructure. Here\'s why self-hosting a request inspector is the better choice.',
+    date: '2026-07-22',
+    tags: ['security', 'opensource', 'engineering'],
+    content: `
+<h2>The Problem With Free Webhook Testers</h2>
+<p>We've all done it. A Stripe webhook isn't firing. A GitHub notification isn't arriving. You open <em>that public webhook testing site</em>, click "Create a URL," and paste it into your third-party dashboard.</p>
+<p>Then the requests start flowing through — to someone else's server. Your payloads, your API keys, your customer data — all of it logged in a database you don't control, on infrastructure you've never seen.</p>
+<p>For local development? That's one thing. But for anything resembling production, staging, or even pre-production with real data, you're making a security trade-off you probably haven't thought about.</p>
+
+<h2>What You're Actually Leaking</h2>
+<p>Consider what a webhook payload typically contains:</p>
+<ul>
+<li><strong>Authentication tokens</strong> — Many services pass API keys or bearer tokens in the <code>Authorization</code> header</li>
+<li><strong>Customer PII</strong> — Payment processor webhooks include names, emails, and billing addresses</li>
+<li><strong>Internal URLs</strong> — Callback URLs, redirect URIs, and internal service endpoints</li>
+<li><strong>Session data</strong> — User IDs, session tokens, and internal identifiers</li>
+<li><strong>IP addresses</strong> — Both yours and your infrastructure's</li>
+</ul>
+<p>Every piece of data in that HTTP request is now sitting in a database you can't delete, on a server you don't own, with a security posture you can't audit.</p>
+<p>Most public webhook services do offer data deletion, but it's manual, and you're trusting their claim. "We delete after 24 hours" is a promise, not a guarantee.</p>
+
+<h2>The Self-Hosted Alternative</h2>
+<p>Self-hosting a request inspector like <a href="https://reqdump-production.up.railway.app">reqdump</a> flips the security model entirely:</p>
+<ul>
+<li><strong>Your data stays on your infrastructure</strong> — No third party ever sees the payloads</li>
+<li><strong>Full control over retention</strong> — Delete data when you want, keep it as long as you need</li>
+<li><strong>Auditable</strong> — The entire codebase is open source (~500 lines of TypeScript)</li>
+<li><strong>Network isolation</strong> — Your reqdump instance can live inside your VPC or behind a VPN</li>
+<li><strong>No account required</strong> — Even self-hosted, there's zero signup friction for your team</li>
+</ul>
+<p>And the cognitive load is near zero. It runs on Railway, Fly.io, or a $5 VPS. No Postgres, no Redis, no Docker — just Node.js and a SQLite file.</p>
+
+<h2>But I'm Just Debugging Locally</h2>
+<p>Even for local development, public webhook services expose metadata about your development environment. The <code>User-Agent</code> header reveals your OS and toolchain. The <code>X-Forwarded-For</code> IP tells them your ISP and approximate location.</p>
+<p>Is this a critical risk? Usually not. But it's an unnecessary one. The same one-click deployment that gets you a live reqdump URL also works for localhost tunneling — deploy it once on Railway and reuse the same instance for every project.</p>
+
+<h2>When Public Services Make Sense</h2>
+<p>To be fair, public webhook testing services are great for:</p>
+<ul>
+<li>Quick one-off tests where the data is disposable</li>
+<li>Learning and tutorials where payloads are fake</li>
+<li>Initial integration testing with sandbox credentials</li>
+</ul>
+<p>The problem is when they become the default for all webhook debugging, including work that touches real systems.</p>
+
+<h2>The Practical Setup</h2>
+<p>Here's what self-hosting reqdump looks like in practice:</p>
+<pre><code># Create a dump endpoint
+curl -X POST https://reqdump.yourdomain.com/api/bins
+
+# Capture requests (any method, any path)
+curl -X POST https://reqdump.yourdomain.com/&lt;bin-id&gt;/webhook/stripe \
+  -H "Authorization: Bearer sk_test_..." \
+  -d '{"event": "payment_intent.succeeded", "amount": 2999}'
+
+# Dashboard to inspect everything
+open https://reqdump.yourdomain.com/bin/&lt;bin-id&gt;</code></pre>
+<p>Every captured request returns custom <code>X-ReqDump</code> and <code>X-ReqDump-Link</code> headers in the response — so you see the debug link right where you need it.</p>
+
+<h2>The Bottom Line</h2>
+<p>Security is about reducing unnecessary trust. Every time you send a webhook payload to a server you don't control, you're introducing a trust relationship that doesn't need to exist.</p>
+<p>Self-hosting a request inspector removes that trust relationship entirely — and with tools like reqdump, the setup cost is measured in minutes, not days.</p>
+<p>Your webhook payloads don't belong to strangers. Keep them on your infrastructure.</p>
+<hr />
+<p><a href="https://reqdump-production.up.railway.app">Try reqdump</a> · <a href="https://github.com/bakasa/reqdump">GitHub</a> · <a href="https://railway.app/template/reqdump">Deploy on Railway</a></p>
+`
+  },
+  {
     slug: 'hono-sqlite-webhook-debugger',
     title: 'The Stack Behind a 500-Line Webhook Debugger: Hono + SQLite',
     excerpt: 'Why I chose Hono and better-sqlite3 over Express + Postgres, and how ~500 lines of TypeScript became a production webhook inspector.',
