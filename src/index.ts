@@ -1048,6 +1048,61 @@ compare staging.png prod.png diff.png</pre>
 <p>Each comparison fetches two screenshots via the SnapShot API playground endpoint — the same API you can call directly with your own key for production workloads.</p>
 <p>Get your free API key at <a href="https://snapshot-api-production-1374.up.railway.app">snapshot-api-production-1374.up.railway.app</a> or <a href="/visual-diff">try the visual diff tool now</a>.</p>
 `
+  },
+  {
+    slug: 'omnipost-v1-self-hosted-ai-content-adaptation',
+    title: 'OmniPost v1.0 — Self-Hosted AI Content Adaptation, No OAuth Required',
+    excerpt: 'Write once, publish everywhere. OmniPost is now a self-hosted open-source tool that generates platform-native captions for TikTok, YouTube Shorts, and Instagram Reels using Gemini AI — with zero OAuth.',
+    date: '2026-07-22',
+    tags: ['opensource', 'omnipost', 'ai', 'content-creation', 'docker'],
+    content: `
+<h2>The Problem: Reformatted Content, Every Time</h2>
+<p>Every social media platform has its own dialect. TikTok wants punchy hooks and emojis. YouTube Shorts needs SEO titles and descriptions. Instagram Reels demands community tone with line breaks.</p>
+<p>If you cross-post, you rewrite the same idea three times. Or you use a SaaS tool that demands "Connect your account → Accept scary permissions → Hand over access" to all your social profiles.</p>
+<p><strong>We think that's backwards.</strong> The safest social media tool is the one that doesn't need your password.</p>
+<h2>Enter OmniPost v1.0</h2>
+<p><a href="https://github.com/bakasa/omnipost">OmniPost</a> is a self-hosted open-source tool that takes one content brief and generates platform-native captions, titles, and hashtags for TikTok, YouTube Shorts, and Instagram Reels — using Google Gemini AI.</p>
+<p>The flow is simple:</p>
+<ol>
+<li>Paste a content idea (or a video URL + brief)</li>
+<li>Gemini generates three platform-specific adaptations</li>
+<li>Review, tweak, and export/download as text packs</li>
+</ol>
+<p>That's it. No OAuth. No account creation. No third-party ever touching your publish credentials.</p>
+<h2>Self-Hosted by Design</h2>
+<p>OmniPost runs on your infrastructure — Docker, one command, up in 2 minutes:</p>
+<pre>git clone https://github.com/bakasa/omnipost
+cd omnipost
+cp .env.example .env
+# Set GEMINI_API_KEY (get one free at https://aistudio.google.com/apikey)
+docker compose up -d</pre>
+<p>The app is now running at <code>http://localhost:3000</code>. Open it, paste a content idea, and get platform-optimized output in seconds.</p>
+<p>For those who want to try before installing, there's a <strong><a href="https://omnipost-production-38f9.up.railway.app">live demo on Railway</a></strong> — no signup, no API key, just paste and go.</p>
+<h2>Why No OAuth Is the Point</h2>
+<p>Every social media scheduling tool asks for the same thing: "Grant us access to post as you." You pause. Because once you give it, you can't unpublish. Every OAuth token is a loaded gun in someone else's hands.</p>
+<p>OmniPost flips the model:</p>
+<ul>
+<li><strong>You control your API keys</strong> — your own Gemini key, not ours</li>
+<li><strong>You control your social accounts</strong> — your own OAuth apps if you want direct publish</li>
+<li><strong>No subscription</strong>, no data leaving your infrastructure</li>
+<li><strong>Docker pull + run</strong> — up in 2 minutes</li>
+</ul>
+<h2>What's Under the Hood</h2>
+<table>
+<tr><td><strong>Frontend</strong></td><td>React 19, TypeScript, Tailwind CSS v4, shadcn/ui</td></tr>
+<tr><td><strong>Backend</strong></td><td>Hono, better-sqlite3</td></tr>
+<tr><td><strong>AI</strong></td><td>Google Gemini (gemini-3.5-flash-lite / gemini-2.5-flash)</td></tr>
+<tr><td><strong>Runtime</strong></td><td>Node.js 22 / Docker</td></tr>
+<tr><td><strong>License</strong></td><td>MIT</td></tr>
+</table>
+<h2>Get Started</h2>
+<ul>
+<li><strong>Self-host</strong>: <code>docker compose up -d</code> — <a href="https://github.com/bakasa/omnipost">github.com/bakasa/omnipost</a></li>
+<li><strong>Live demo</strong>: <a href="https://omnipost-production-38f9.up.railway.app">omnipost-production-38f9.up.railway.app</a></li>
+<li><strong>API</strong>: POST a brief, get back JSON — try it with curl: <code>curl -X POST https://omnipost-production-38f9.up.railway.app/demo/adapt -H "Content-Type: application/json" -d '{"brief":"Your idea here","platforms":["tiktok","youtube","instagram"]}'</code></li>
+</ul>
+<p>The open-source community has been asking for tools that respect their autonomy. OmniPost is our answer. No OAuth. No vendor lock-in. Just your ideas, your infrastructure, your content.</p>
+`
   }
 ]
 
