@@ -1,54 +1,100 @@
 import { Hono } from 'hono'
 import { serve } from '@hono/node-server'
-import { readFile, writeFile, mkdir } from 'fs/promises'
-import { existsSync } from 'fs'
+import { readFile, writeFile, mkdir, appendFile } from 'fs/promises'
+import { existsSync, mkdirSync } from 'fs'
 import path from 'path'
+import { join } from 'path'
 
 const app = new Hono()
 
-const PRODUCTS = [
-  {
-    id: 'reqdump',
-    name: 'ReqDump',
-    tagline: 'HTTP request inspector for developers',
-    description: 'Tunnel HTTP requests to a public URL and inspect every detail — headers, body, params, timing. The debugging tool you deploy once and use forever.',
-    url: 'https://reqdump-production.up.railway.app',
-    github: 'https://github.com/bakasa/reqdump',
-    badge: 'Open Source',
-    badgeColor: '#22C55E',
-  },
-  {
-    id: 'snapog',
-    name: 'SnapOG',
-    tagline: 'OG image generation API',
-    description: 'Generate stunning 1200×630 social cards with one API call. Five templates, dark/light themes, disk-cached, delivered in milliseconds.',
-    url: 'https://snapog-production.up.railway.app',
-    github: 'https://github.com/bakasa/snapog',
-    badge: 'API',
-    badgeColor: '#F59E0B',
-  },
-  {
-    id: 'omnipost',
-    name: 'OmniPost',
-    tagline: 'Cross-platform content studio',
-    description: 'Upload one video, publish everywhere. AI-powered caption, title, and hashtag adaptation for TikTok, YouTube Shorts, and Instagram Reels.',
-    url: 'https://omnipost-production-38f9.up.railway.app',
-    github: 'https://github.com/bakasa/omnipost',
-    badge: 'Studio',
-    badgeColor: '#A855F7',
-  },
-]
-
 const OG_TITLE = 'Auto Company — Build tools. Ship products.'
-const OG_DESC = 'Auto Company builds developer tools and content creation products. ReqDump, SnapOG, and OmniPost.'
+const OG_DESC = 'Auto Company builds developer tools and content creation products. Live service dashboard.'
 const OG_IMAGE = 'https://snapog-production.up.railway.app/preview?title=Auto+Company&description=Build+tools.+Ship+products.&template=default&theme=dark'
 const SITE_URL = 'https://company-site-production-9f58.up.railway.app'
+
+const SERVICES: Array<{ id: string; name: string; tagline: string; url: string; github: string | null; badge: string; badgeColor: string; healthPath: string }> = [
+  { id: 'reqdump', name: 'ReqDump', tagline: 'HTTP request inspector & webhook debugger', url: 'https://reqdump-production.up.railway.app', github: 'https://github.com/bakasa/reqdump', badge: 'Open Source', badgeColor: '#22C55E', healthPath: '/health' },
+  { id: 'snapog', name: 'SnapOG', tagline: 'OG image generation API', url: 'https://snapog-production.up.railway.app', github: 'https://github.com/bakasa/snapog', badge: 'API', badgeColor: '#F59E0B', healthPath: '/health' },
+  { id: 'omnipost', name: 'OmniPost', tagline: 'Cross-platform content studio', url: 'https://omnipost-production-38f9.up.railway.app', github: 'https://github.com/bakasa/omnipost', badge: 'Studio', badgeColor: '#A855F7', healthPath: '/health' },
+  { id: 'company-site', name: 'Auto Company', tagline: 'Company site & service dashboard', url: 'https://company-site-production-9f58.up.railway.app', github: null, badge: 'Meta', badgeColor: '#6B7280', healthPath: '/health' },
+]
+
+const DATA_DIR = path.join(process.cwd(), 'data')
+if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true })
+
+const PINGS_FILE = join(DATA_DIR, 'pings.json')
+
+interface PingRecord {
+  service_id: string
+  online: boolean
+  ms: number
+  status_code: number | null
+  checked_at: string
+}
+
+async function loadPings(): Promise<PingRecord[]> {
+  try {
+    const raw = await readFile(PINGS_FILE, 'utf-8')
+    return JSON.parse(raw)
+  } catch {
+    return []
+  }
+}
+
+async function savePings(pings: PingRecord[]) {
+  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+  const trimmed = pings.filter(p => p.checked_at >= cutoff)
+  await writeFile(PINGS_FILE, JSON.stringify(trimmed))
+}
+
+async function addPing(service_id: string, online: boolean, ms: number, status_code: number | null) {
+  const pings = await loadPings()
+  pings.push({ service_id, online, ms, status_code, checked_at: new Date().toISOString() })
+  await savePings(pings)
+}
+
+async function getRecentPings(service_id: string, days = 7): Promise<PingRecord[]> {
+  const pings = await loadPings()
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
+  return pings.filter(p => p.service_id === service_id && p.checked_at >= cutoff).sort((a, b) => a.checked_at.localeCompare(b.checked_at))
+}
+
+async function getServiceStats(service_id: string) {
+  const recent = await getRecentPings(service_id)
+  const total = recent.length
+  const up = recent.filter(p => p.online).length
+  const avgMs = up > 0 ? Math.round(recent.filter(p => p.online).reduce((s, p) => s + p.ms, 0) / up) : 0
+  const lastCheck = recent.length > 0 ? recent[recent.length - 1].checked_at : null
+  return { total_checks: total, up_checks: up, avg_ms: avgMs, last_check: lastCheck }
+}
+
+async function checkService(svc: typeof SERVICES[0]): Promise<{ online: boolean; ms: number; statusCode: number }> {
+  const url = `${svc.url.replace(/\/+$/, '')}/${svc.healthPath.replace(/^\//, '')}`
+  const t0 = performance.now()
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(10000) })
+    const ms = Math.round(performance.now() - t0)
+    return { online: res.ok, ms, statusCode: res.status }
+  } catch {
+    return { online: false, ms: Math.round(performance.now() - t0), statusCode: 0 }
+  }
+}
+
+async function checkAllServices() {
+  const results = await Promise.all(SERVICES.map(s => checkService(s)))
+  for (let i = 0; i < SERVICES.length; i++) {
+    await addPing(SERVICES[i].id, results[i].online, results[i].ms, results[i].statusCode === 0 ? null : results[i].statusCode)
+  }
+}
+
+checkAllServices()
+setInterval(checkAllServices, 5 * 60 * 1000)
 
 const BLOG_POSTS = [
   {
     slug: 'self-host-request-inspector-security',
     title: 'Stop Pasting Webhooks Into Strangers\' Services — Self-Host Your Request Inspector',
-    excerpt: 'Every time you paste a webhook URL from a public service, you\'re sending sensitive data through someone else\'s infrastructure. Here\'s why self-hosting a request inspector is the better choice.',
+    excerpt: 'Every time you paste a webhook URL from a public service, you\'re sending sensitive data through someone else\'s infrastructure.',
     date: '2026-07-22',
     tags: ['security', 'opensource', 'engineering'],
     content: `
@@ -56,118 +102,98 @@ const BLOG_POSTS = [
 <p>We've all done it. A Stripe webhook isn't firing. A GitHub notification isn't arriving. You open <em>that public webhook testing site</em>, click "Create a URL," and paste it into your third-party dashboard.</p>
 <p>Then the requests start flowing through — to someone else's server. Your payloads, your API keys, your customer data — all of it logged in a database you don't control, on infrastructure you've never seen.</p>
 <p>For local development? That's one thing. But for anything resembling production, staging, or even pre-production with real data, you're making a security trade-off you probably haven't thought about.</p>
-
 <h2>What You're Actually Leaking</h2>
 <p>Consider what a webhook payload typically contains:</p>
 <ul>
-<li><strong>Authentication tokens</strong> — Many services pass API keys or bearer tokens in the <code>Authorization</code> header</li>
-<li><strong>Customer PII</strong> — Payment processor webhooks include names, emails, and billing addresses</li>
-<li><strong>Internal URLs</strong> — Callback URLs, redirect URIs, and internal service endpoints</li>
-<li><strong>Session data</strong> — User IDs, session tokens, and internal identifiers</li>
-<li><strong>IP addresses</strong> — Both yours and your infrastructure's</li>
+<li><strong>Authentication tokens</strong> — Many services pass API keys or bearer tokens</li>
+<li><strong>Customer PII</strong> — Payment processor webhooks include names, emails, billing addresses</li>
+<li><strong>Internal URLs</strong> — Callback URLs, redirect URIs, internal service endpoints</li>
+<li><strong>Session data</strong> — User IDs, session tokens, internal identifiers</li>
 </ul>
-<p>Every piece of data in that HTTP request is now sitting in a database you can't delete, on a server you don't own, with a security posture you can't audit.</p>
-<p>Most public webhook services do offer data deletion, but it's manual, and you're trusting their claim. "We delete after 24 hours" is a promise, not a guarantee.</p>
-
-<h2>The Self-Hosted Alternative</h2>
-<p>Self-hosting a request inspector like <a href="https://reqdump-production.up.railway.app">reqdump</a> flips the security model entirely:</p>
-<ul>
-<li><strong>Your data stays on your infrastructure</strong> — No third party ever sees the payloads</li>
-<li><strong>Full control over retention</strong> — Delete data when you want, keep it as long as you need</li>
-<li><strong>Auditable</strong> — The entire codebase is open source (~500 lines of TypeScript)</li>
-<li><strong>Network isolation</strong> — Your reqdump instance can live inside your VPC or behind a VPN</li>
-<li><strong>No account required</strong> — Even self-hosted, there's zero signup friction for your team</li>
-</ul>
-<p>And the cognitive load is near zero. It runs on Railway, Fly.io, or a $5 VPS. No Postgres, no Redis, no Docker — just Node.js and a SQLite file.</p>
-
-<h2>But I'm Just Debugging Locally</h2>
-<p>Even for local development, public webhook services expose metadata about your development environment. The <code>User-Agent</code> header reveals your OS and toolchain. The <code>X-Forwarded-For</code> IP tells them your ISP and approximate location.</p>
-<p>Is this a critical risk? Usually not. But it's an unnecessary one. The same one-click deployment that gets you a live reqdump URL also works for localhost tunneling — deploy it once on Railway and reuse the same instance for every project.</p>
-
-<h2>When Public Services Make Sense</h2>
-<p>To be fair, public webhook testing services are great for:</p>
-<ul>
-<li>Quick one-off tests where the data is disposable</li>
-<li>Learning and tutorials where payloads are fake</li>
-<li>Initial integration testing with sandbox credentials</li>
-</ul>
-<p>The problem is when they become the default for all webhook debugging, including work that touches real systems.</p>
-
-<h2>The Practical Setup</h2>
-<p>Here's what self-hosting reqdump looks like in practice:</p>
-<pre><code># Create a dump endpoint
-curl -X POST https://reqdump.yourdomain.com/api/bins
-
-# Capture requests (any method, any path)
-curl -X POST https://reqdump.yourdomain.com/&lt;bin-id&gt;/webhook/stripe \
-  -H "Authorization: Bearer sk_test_..." \
-  -d '{"event": "payment_intent.succeeded", "amount": 2999}'
-
-# Dashboard to inspect everything
-open https://reqdump.yourdomain.com/bin/&lt;bin-id&gt;</code></pre>
-<p>Every captured request returns custom <code>X-ReqDump</code> and <code>X-ReqDump-Link</code> headers in the response — so you see the debug link right where you need it.</p>
-
-<h2>The Bottom Line</h2>
-<p>Security is about reducing unnecessary trust. Every time you send a webhook payload to a server you don't control, you're introducing a trust relationship that doesn't need to exist.</p>
-<p>Self-hosting a request inspector removes that trust relationship entirely — and with tools like reqdump, the setup cost is measured in minutes, not days.</p>
-<p>Your webhook payloads don't belong to strangers. Keep them on your infrastructure.</p>
-<hr />
+<p>Self-hosting a request inspector like <a href="https://reqdump-production.up.railway.app">reqdump</a> flips the security model entirely — your data stays on your infrastructure, the code is fully auditable (~500 lines), and you control retention.</p>
 <p><a href="https://reqdump-production.up.railway.app">Try reqdump</a> · <a href="https://github.com/bakasa/reqdump">GitHub</a> · <a href="https://railway.app/template/reqdump">Deploy on Railway</a></p>
+`
+  },
+  {
+    slug: 'stripe-webhook-debugging-guide',
+    title: 'How to Debug Stripe Webhooks: Signature Verification, Local Testing, and Best Practices',
+    excerpt: 'A practical guide to debugging Stripe webhooks — from signature verification and Stripe CLI testing to capturing live events.',
+    date: '2026-07-22',
+    tags: ['stripe', 'webhooks', 'debugging', 'engineering'],
+    content: `
+<h2>Why Stripe Webhooks Are Hard to Debug</h2>
+<p>Stripe's servers need to reach your endpoint, which means localhost won't work. Webhook signatures add crypto overhead. Events arrive asynchronously.</p>
+<p>This guide covers the fastest workflow for debugging Stripe webhooks — from creating a capture endpoint to verifying signatures to replaying events locally.</p>
+<h2>Step 1: Create a Capture Endpoint</h2>
+<p><a href="https://reqdump-production.up.railway.app">reqdump</a> creates a unique endpoint instantly — no signup, no account.</p>
+<h2>Step 2: Point Stripe at Your Capture Endpoint</h2>
+<p>Use Stripe Dashboard or Stripe CLI to forward events.</p>
+<h2>Step 3: Inspect the Captured Webhook</h2>
+<p>Open your dashboard URL and see method, path, headers, body.</p>
+<h2>Step 4: Verify the Webhook Signature</h2>
+<p>reqdump has a built-in signature verification tool at <a href="https://reqdump-production.up.railway.app/stripe">/stripe</a>.</p>
+<h2>Step 5: Replay Events Against Your Local Server</h2>
+<p>From the request detail page, open Replay, enter your local server URL, hit Send.</p>
+<p><a href="https://reqdump-production.up.railway.app">Try reqdump's Stripe webhook debugger</a></p>
+`
+  },
+  {
+    slug: 'webhook-idempotency-duplicate-events',
+    title: 'Webhook Idempotency: How to Handle Duplicate Events Without Breaking Your System',
+    excerpt: 'Webhooks are delivered with at-least-once semantics. Here\'s how to build idempotent handlers that safely process the same event multiple times.',
+    date: '2026-07-22',
+    tags: ['webhooks', 'engineering', 'best-practices'],
+    content: `
+<h2>Why Duplicate Webhooks Are Inevitable</h2>
+<p>Every major webhook provider uses at-least-once delivery semantics. Duplicates are a feature, not a bug.</p>
+<h2>What Happens Without Idempotency</h2>
+<p>Multiple charge records, duplicate emails, inflated metrics, race conditions.</p>
+<h2>The Core Pattern: Event ID Deduplication</h2>
+<p>Use a processed-events table with atomic INSERT to gate processing.</p>
+<p><a href="https://reqdump-production.up.railway.app">Try reqdump — capture, inspect, and replay webhooks</a></p>
+`
+  },
+  {
+    slug: 'test-webhooks-locally-without-ngrok',
+    title: 'How to Test Webhooks Locally Without ngrok',
+    excerpt: 'Stripe CLI, ReqDump capture+replay, and self-hosted alternatives for debugging webhooks without exposing localhost.',
+    date: '2026-07-22',
+    tags: ['webhooks', 'testing', 'engineering', 'tutorial'],
+    content: `
+<h2>Why You Don't Always Need ngrok</h2>
+<p>Rate limits, ephemeral URLs, session management, no persistence.</p>
+<h2>Method 1: Stripe CLI Forwarding</h2>
+<p>stripe listen --forward-to http://localhost:3000/webhook</p>
+<h2>Method 2: Capture with ReqDump, Replay Locally</h2>
+<p>Create a bin, capture the real request, replay against localhost.</p>
+<h2>Method 3: Self-Hosted ReqDump</h2>
+<p>For production data where you control the infrastructure.</p>
+<p><a href="https://reqdump-production.up.railway.app">Try ReqDump</a></p>
 `
   },
   {
     slug: 'hono-sqlite-webhook-debugger',
     title: 'The Stack Behind a 500-Line Webhook Debugger: Hono + SQLite',
-    excerpt: 'Why I chose Hono and better-sqlite3 over Express + Postgres, and how ~500 lines of TypeScript became a production webhook inspector.',
+    excerpt: 'Why Hono and better-sqlite3 over Express + Postgres, and how ~500 lines of TypeScript became a production webhook inspector.',
     date: '2026-07-22',
     tags: ['engineering', 'opensource'],
     content: `
 <h2>Why Not Express?</h2>
-<p>Express is the default choice for Node.js HTTP servers. But this is 2026, and we have better options:</p>
-<ul>
-<li><strong>Hono is 20x faster</strong> — 1.2M req/s vs 58k req/s on the Hello World benchmark</li>
-<li><strong>Hono is tiny</strong> — 14KB vs Express's 200KB+ (with middleware)</li>
-<li><strong>Hono runs everywhere</strong> — Node.js, Deno, Bun, Cloudflare Workers, Lambda</li>
-<li><strong>Hono has built-in types</strong> — full TypeScript inference without \`@types/express\`</li>
-</ul>
-<p>For a request inspector where every request hits the server and gets processed, performance matters. Hono handles the capture route with zero overhead.</p>
-
+<p>Hono is 20x faster, 14KB, runs everywhere, full TypeScript inference.</p>
 <h2>Why better-sqlite3 Instead of Postgres</h2>
-<p>Every webhook inspector I evaluated (webhook.site, RequestBin) requires you to set up infrastructure or pay for a database. I wanted <a href="https://reqdump-production.up.railway.app">reqdump</a> to be <strong>deployable by anyone in 60 seconds</strong> with nothing but a Railway account.</p>
-<p>better-sqlite3 gives us:</p>
-<ol>
-<li><strong>Zero infrastructure</strong> — The database is a file. No Docker, no Postgres, no connection pooling.</li>
-<li><strong>Synchronous API</strong> — No \`await\` for writes. For a single-instance app, this simplifies the code dramatically.</li>
-<li><strong>WAL mode</strong> — Write-Ahead Logging gives us concurrent reads without locks.</li>
-<li><strong>Automatic cleanup</strong> — A simple \`DELETE\` in a \`setInterval\` keeps the database from growing unbounded.</li>
-</ol>
-<p>The tradeoff? SQLite doesn't scale horizontally. But reqdump doesn't need to — everything fits on one Railway instance with a single SQLite file. If we ever outgrow it, the schema is simple enough that migrating to Postgres is an afternoon's work.</p>
-
+<p>Zero infrastructure, synchronous API, WAL mode, automatic cleanup.</p>
 <h2>The Architecture</h2>
-<pre><code>POST /api/bins      →  Create Bin  →  SQLite INSERT
-ANY  /:id/*         →  Capture Req  →  SQLite INSERT + Response
-                                      with X-ReqDump headers
-GET  /bin/:id       →  Dashboard    →  SQLite SELECT → HTML page</code></pre>
-<p>The entire server is ~500 lines of TypeScript in a single file. No routers, no controllers, no ORM — just Hono routes and prepared SQLite statements.</p>
-
-<h3>The Viral Header Trick</h3>
-<p>Every captured request response includes two headers:</p>
-<pre><code>X-ReqDump: true
-X-ReqDump-Link: https://reqdump-production.up.railway.app/bin/&lt;id&gt;</code></pre>
-<p>When a developer sends a request to their reqdump endpoint and inspects the response, they see these headers. If they share the curl command with a teammate, the teammate discovers reqdump too. Passive viral growth, zero effort.</p>
-
-<h2>Deployment</h2>
-<pre><code>railway up</code></pre>
-<p>That's it. The \`railway.json\` tells Railway to use Node.js with the start command from \`package.json\`. No Dockerfile needed.</p>
-
-<h2>Why This Matters</h2>
-<p>The best tools are the ones you don't have to think about. reqdump removes every barrier between "I need to debug a webhook" and "I can see the request." No signup, no account creation, no database setup — just a URL and instant results.</p>
-<p>If you're building a developer tool, ask yourself: <strong>what friction can I remove that nobody else is willing to remove?</strong></p>
-<hr />
-<p><a href="https://reqdump-production.up.railway.app">Try reqdump</a> · <a href="https://github.com/bakasa/reqdump">GitHub</a> · <a href="https://railway.app/template/reqdump">Deploy on Railway</a></p>
+<p>Three routes: create bin, capture request, view dashboard.</p>
+<p>The entire server is ~500 lines of TypeScript in a single file.</p>
+<p><a href="https://reqdump-production.up.railway.app">Try reqdump</a></p>
 `
   }
 ]
+
+function escapeHtml(s: string): string {
+  if (!s) return ''
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
 
 const PAGE = `<!DOCTYPE html>
 <html lang="en">
@@ -188,460 +214,110 @@ const PAGE = `<!DOCTYPE html>
 <meta name="twitter:title" content="${OG_TITLE}" />
 <meta name="twitter:description" content="${OG_DESC}" />
 <meta name="twitter:image" content="${OG_IMAGE}" />
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "Organization",
-  "name": "Auto Company",
-  "description": "${OG_DESC}",
-  "url": "${SITE_URL}",
-  "knowsAbout": ["Developer Tools", "HTTP Inspection", "OG Image Generation", "Content Creation"],
-  "owns": [
-    { "@type": "WebApplication", "name": "ReqDump", "description": "HTTP request inspector for developers" },
-    { "@type": "WebApplication", "name": "SnapOG", "description": "OG image generation API" },
-    { "@type": "WebApplication", "name": "OmniPost", "description": "Cross-platform content studio" }
-  ]
-}
-</script>
 <script defer data-domain="company-site-production-9f58.up.railway.app" src="https://plausible.io/js/script.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  :root {
-    --bg: #0B0D12;
-    --bg-alt: #11141D;
-    --surface: #181C27;
-    --surface-hover: #1F2433;
-    --border: #242938;
-    --text-1: #EDEEF0;
-    --text-2: #969CA8;
-    --text-3: #545A68;
-    --accent: #D97706;
-    --accent-glow: rgba(217, 119, 6, 0.15);
-    --green: #22C55E;
-    --red: #EF4444;
-    --font-sans: 'DM Sans', system-ui, sans-serif;
-    --font-mono: 'DM Mono', 'SF Mono', monospace;
-    --r: 10px;
-    --r-lg: 16px;
-  }
-
-  body {
-    background: var(--bg);
-    color: var(--text-1);
-    font-family: var(--font-sans);
-    font-size: 16px;
-    line-height: 1.6;
-    min-height: 100vh;
-  }
-
-  .bg-grid {
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    z-index: 0;
-    background-image:
-      linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
-    background-size: 48px 48px;
-  }
-
-  .bg-glow {
-    position: fixed;
-    top: -40vh;
-    left: -20vw;
-    width: 80vw;
-    height: 80vh;
-    background: radial-gradient(ellipse at center, var(--accent-glow) 0%, transparent 70%);
-    pointer-events: none;
-    z-index: 0;
-  }
-
-  .container {
-    position: relative;
-    z-index: 1;
-    max-width: 960px;
-    margin: 0 auto;
-    padding: 0 24px;
-  }
-
-  nav {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 28px 0;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .logo {
-    font-family: var(--font-mono);
-    font-weight: 500;
-    font-size: 18px;
-    color: var(--text-1);
-    letter-spacing: -0.02em;
-  }
-
-  .logo span { color: var(--accent); }
-
-  .nav-links {
-    display: flex;
-    gap: 28px;
-    align-items: center;
-  }
-
-  .nav-links a {
-    color: var(--text-2);
-    text-decoration: none;
-    font-size: 14px;
-    transition: color 0.15s;
-  }
-
-  .nav-links a:hover { color: var(--text-1); }
-
-  .hero {
-    padding: 80px 0 64px;
-    text-align: center;
-  }
-
-  .hero-eyebrow {
-    font-family: var(--font-mono);
-    font-size: 12px;
-    color: var(--accent);
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    margin-bottom: 20px;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .hero-eyebrow::before {
-    content: '';
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--green);
-    animation: pulse-dot 2s ease-in-out infinite;
-  }
-
-  @keyframes pulse-dot {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
-  }
-
-  .hero h1 {
-    font-size: clamp(40px, 6vw, 64px);
-    font-weight: 700;
-    letter-spacing: -0.04em;
-    line-height: 1.05;
-    margin-bottom: 20px;
-  }
-
-  .hero h1 span {
-    background: linear-gradient(135deg, var(--accent), #FBBF24);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  .hero-sub {
-    font-size: 18px;
-    color: var(--text-2);
-    max-width: 520px;
-    margin: 0 auto;
-    line-height: 1.65;
-  }
-
-  .hero-stats {
-    display: flex;
-    gap: 48px;
-    justify-content: center;
-    margin-top: 40px;
-  }
-
-  .hero-stat {
-    text-align: center;
-  }
-
-  .hero-stat-num {
-    font-family: var(--font-mono);
-    font-size: 28px;
-    font-weight: 500;
-    color: var(--text-1);
-  }
-
-  .hero-stat-label {
-    font-size: 13px;
-    color: var(--text-3);
-    margin-top: 4px;
-  }
-
-  .section-title {
-    font-family: var(--font-mono);
-    font-size: 12px;
-    color: var(--text-3);
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    margin-bottom: 32px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .products {
-    padding: 0 0 80px;
-  }
-
-  .product-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-
-  .product-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--r-lg);
-    padding: 32px;
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 24px;
-    align-items: start;
-    transition: border-color 0.2s, background 0.2s;
-    text-decoration: none;
-    color: inherit;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .product-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 3px;
-    height: 100%;
-    background: var(--accent);
-    opacity: 0;
-    transition: opacity 0.2s;
-  }
-
-  .product-card:hover {
-    border-color: #3A4155;
-    background: var(--surface-hover);
-  }
-
-  .product-card:hover::before {
-    opacity: 1;
-  }
-
-  .product-card-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 8px;
-  }
-
-  .product-name {
-    font-family: var(--font-mono);
-    font-size: 18px;
-    font-weight: 500;
-    color: var(--text-1);
-  }
-
-  .product-badge {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    font-weight: 500;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    padding: 2px 10px;
-    border-radius: 100px;
-    line-height: 1.6;
-  }
-
-  .product-tagline {
-    font-size: 15px;
-    color: var(--text-2);
-    margin-bottom: 12px;
-    line-height: 1.5;
-  }
-
-  .product-desc {
-    font-size: 14px;
-    color: var(--text-3);
-    line-height: 1.6;
-  }
-
-  .product-meta {
-    display: flex;
-    gap: 16px;
-    margin-top: 16px;
-    flex-wrap: wrap;
-  }
-
-  .product-link {
-    font-family: var(--font-mono);
-    font-size: 12px;
-    color: var(--accent);
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .product-link:hover {
-    color: #FBBF24;
-  }
-
-  .product-status {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 8px;
-    min-width: 100px;
-  }
-
-  .status-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-family: var(--font-mono);
-    font-size: 11px;
-    padding: 4px 12px;
-    border-radius: 100px;
-    border: 1px solid var(--border);
-    background: var(--bg);
-  }
-
-  .status-badge .dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-  }
-
-  .status-badge.online .dot { background: var(--green); }
-  .status-badge.offline .dot { background: var(--red); }
-  .status-badge.checking .dot { background: var(--text-3); animation: pulse-dot 1s ease-in-out infinite; }
-
-  .status-latency {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    color: var(--text-3);
-  }
-
-  footer {
-    border-top: 1px solid var(--border);
-    padding: 32px 0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 13px;
-    color: var(--text-3);
-  }
-
-  footer a { color: var(--text-2); text-decoration: none; }
-  footer a:hover { color: var(--text-1); }
-
-  .waitlist {
-    padding: 40px 0 80px;
-    text-align: center;
-  }
-
-  .waitlist-box {
-    max-width: 520px;
-    margin: 0 auto;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--r-lg);
-    padding: 48px 40px;
-    text-align: center;
-  }
-
-  .waitlist h2 {
-    font-size: 24px;
-    font-weight: 600;
-    letter-spacing: -0.02em;
-    margin-bottom: 8px;
-  }
-
-  .waitlist p {
-    font-size: 15px;
-    color: var(--text-2);
-    margin-bottom: 28px;
-    line-height: 1.6;
-  }
-
-  .waitlist-form {
-    display: flex;
-    gap: 12px;
-    max-width: 420px;
-    margin: 0 auto;
-  }
-
-  .waitlist-input {
-    flex: 1;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: var(--r);
-    padding: 12px 16px;
-    font-family: var(--font-sans);
-    font-size: 15px;
-    color: var(--text-1);
-    outline: none;
-    transition: border-color 0.2s;
-  }
-
-  .waitlist-input::placeholder { color: var(--text-3); }
-  .waitlist-input:focus { border-color: var(--accent); }
-
-  .waitlist-btn {
-    background: var(--accent);
-    color: #0B0D12;
-    border: none;
-    border-radius: var(--r);
-    padding: 12px 24px;
-    font-family: var(--font-sans);
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.15s, transform 0.1s;
-    white-space: nowrap;
-  }
-
-  .waitlist-btn:hover { background: #F59E0B; }
-  .waitlist-btn:active { transform: scale(0.97); }
-  .waitlist-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-
-  .waitlist-message {
-    margin-top: 20px;
-    font-size: 14px;
-    min-height: 24px;
-  }
-
-  .waitlist-message.success { color: var(--green); }
-  .waitlist-message.error { color: var(--red); }
-
-  @media (max-width: 640px) {
-    .waitlist-box { padding: 32px 24px; }
-    .waitlist-form { flex-direction: column; }
-    .waitlist-btn { width: 100%; }
-    .product-card {
-      grid-template-columns: 1fr;
-    }
-    .product-status {
-      flex-direction: row;
-      align-items: center;
-    }
-    .hero-stats {
-      gap: 24px;
-    }
-    nav {
-      flex-direction: column;
-      gap: 16px;
-    }
-  }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0B0D12; --bg-alt: #11141D; --surface: #181C27;
+  --surface-hover: #1F2433; --border: #242938; --border-light: #2E3444;
+  --text-1: #EDEEF0; --text-2: #969CA8; --text-3: #545A68;
+  --accent: #D97706; --accent-glow: rgba(217,119,6,0.15);
+  --green: #22C55E; --green-dim: rgba(34,197,94,0.12);
+  --red: #EF4444; --red-dim: rgba(239,68,68,0.12);
+  --yellow: #EAB308;
+  --font-sans: 'DM Sans', system-ui, sans-serif;
+  --font-mono: 'DM Mono', 'SF Mono', monospace;
+  --r: 10px; --r-lg: 16px;
+}
+body { background: var(--bg); color: var(--text-1); font-family: var(--font-sans); font-size: 16px; line-height: 1.6; min-height: 100vh; }
+.bg-grid { position: fixed; inset: 0; pointer-events: none; z-index: 0; background-image: linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px); background-size: 48px 48px; }
+.bg-glow { position: fixed; top: -40vh; left: -20vw; width: 80vw; height: 80vh; background: radial-gradient(ellipse at center, var(--accent-glow) 0%, transparent 70%); pointer-events: none; z-index: 0; }
+.container { position: relative; z-index: 1; max-width: 960px; margin: 0 auto; padding: 0 24px; }
+nav { display: flex; align-items: center; justify-content: space-between; padding: 28px 0; border-bottom: 1px solid var(--border); }
+.logo { font-family: var(--font-mono); font-weight: 500; font-size: 18px; color: var(--text-1); letter-spacing: -0.02em; }
+.logo span { color: var(--accent); }
+.nav-links { display: flex; gap: 28px; align-items: center; }
+.nav-links a { color: var(--text-2); text-decoration: none; font-size: 14px; transition: color 0.15s; }
+.nav-links a:hover { color: var(--text-1); }
+.hero { padding: 80px 0 64px; text-align: center; }
+.hero-eyebrow { font-family: var(--font-mono); font-size: 12px; color: var(--accent); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 20px; display: inline-flex; align-items: center; gap: 8px; }
+.hero-eyebrow::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: pulse-dot 2s ease-in-out infinite; }
+@keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+.hero h1 { font-size: clamp(40px, 6vw, 64px); font-weight: 700; letter-spacing: -0.04em; line-height: 1.05; margin-bottom: 20px; }
+.hero h1 span { background: linear-gradient(135deg, var(--accent), #FBBF24); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.hero-sub { font-size: 18px; color: var(--text-2); max-width: 520px; margin: 0 auto; line-height: 1.65; }
+.hero-stats { display: flex; gap: 48px; justify-content: center; margin-top: 40px; flex-wrap: wrap; }
+.hero-stat { text-align: center; }
+.hero-stat-num { font-family: var(--font-mono); font-size: 28px; font-weight: 500; color: var(--text-1); }
+.hero-stat-label { font-size: 13px; color: var(--text-3); margin-top: 4px; }
+.section-title { font-family: var(--font-mono); font-size: 12px; color: var(--text-3); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.products { padding: 0 0 80px; }
+.product-grid { display: flex; flex-direction: column; gap: 12px; }
+.product-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 24px 28px; display: flex; align-items: center; gap: 20px; transition: border-color 0.2s, background 0.2s; text-decoration: none; color: inherit; position: relative; overflow: hidden; }
+.product-card:hover { border-color: var(--border-light); background: var(--surface-hover); }
+.product-card-inner { flex: 1; min-width: 0; }
+.product-card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.product-name { font-family: var(--font-mono); font-size: 16px; font-weight: 500; color: var(--text-1); }
+.product-badge { font-family: var(--font-mono); font-size: 10px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 10px; border-radius: 100px; line-height: 1.6; }
+.product-tagline { font-size: 13px; color: var(--text-2); }
+.product-link { font-family: var(--font-mono); font-size: 12px; color: var(--accent); display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; }
+.product-link:hover { color: #FBBF24; }
+.product-status { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; min-width: 90px; flex-shrink: 0; }
+.status-badge { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 11px; padding: 4px 12px; border-radius: 100px; border: 1px solid var(--border); background: var(--bg); }
+.status-badge .dot { width: 7px; height: 7px; border-radius: 50%; }
+.status-badge.online .dot { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.status-badge.offline .dot { background: var(--red); box-shadow: 0 0 6px var(--red); }
+.status-badge.checking .dot { background: var(--text-3); animation: pulse-dot 1s ease-in-out infinite; }
+.status-latency { font-family: var(--font-mono); font-size: 11px; color: var(--text-3); }
+.status-bar-chart { display: flex; gap: 2px; align-items: flex-end; height: 16px; margin-top: 4px; }
+.status-bar { width: 4px; border-radius: 1px; background: var(--border); transition: background 0.3s; }
+.status-bar.up { background: var(--green); }
+.status-bar.down { background: var(--red); }
+.status-bar.current { width: 6px; }
+.dashboard-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 32px; }
+.dashboard-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 20px; }
+.dashboard-card h3 { font-size: 11px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; font-family: var(--font-mono); }
+.dashboard-card .value { font-family: var(--font-mono); font-size: 28px; font-weight: 500; color: var(--text-1); }
+.dashboard-card .sub { font-size: 12px; color: var(--text-2); margin-top: 4px; }
+.dashboard-card .sub .ok { color: var(--green); }
+.dashboard-card .sub .fail { color: var(--red); }
+.status-timeline { margin: 24px 0; }
+.status-timeline h3 { font-size: 12px; color: var(--text-3); margin-bottom: 8px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; }
+.timeline-row { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+.timeline-label { font-family: var(--font-mono); font-size: 11px; color: var(--text-2); min-width: 80px; text-align: right; }
+.timeline-bars { display: flex; gap: 2px; flex: 1; height: 20px; align-items: flex-end; }
+.timeline-bar { width: 100%; height: 100%; border-radius: 1px; min-width: 3px; background: var(--border); }
+.timeline-bar.up { background: var(--green); }
+.timeline-bar.down { background: var(--red); }
+.timeline-summary { font-family: var(--font-mono); font-size: 11px; color: var(--text-3); min-width: 60px; }
+.waitlist-box { max-width: 520px; margin: 0 auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 48px 40px; text-align: center; }
+.waitlist-box h2 { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 8px; }
+.waitlist-box p { font-size: 15px; color: var(--text-2); margin-bottom: 28px; line-height: 1.6; }
+.waitlist-form { display: flex; gap: 12px; max-width: 420px; margin: 0 auto; }
+.waitlist-input { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: var(--r); padding: 12px 16px; font-family: var(--font-sans); font-size: 15px; color: var(--text-1); outline: none; transition: border-color 0.2s; }
+.waitlist-input::placeholder { color: var(--text-3); }
+.waitlist-input:focus { border-color: var(--accent); }
+.waitlist-btn { background: var(--accent); color: #0B0D12; border: none; border-radius: var(--r); padding: 12px 24px; font-family: var(--font-sans); font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.15s, transform 0.1s; white-space: nowrap; }
+.waitlist-btn:hover { background: #F59E0B; }
+.waitlist-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.waitlist-message { margin-top: 20px; font-size: 14px; min-height: 24px; }
+.waitlist-message.success { color: var(--green); }
+.waitlist-message.error { color: var(--red); }
+footer { border-top: 1px solid var(--border); padding: 32px 0; display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--text-3); margin-top: 40px; }
+footer a { color: var(--text-2); text-decoration: none; }
+footer a:hover { color: var(--text-1); }
+@media (max-width: 640px) {
+  .hero { padding: 40px 0 32px; }
+  .hero-stats { gap: 24px; }
+  .product-card { flex-direction: column; align-items: stretch; }
+  .product-status { flex-direction: row; align-items: center; }
+  .waitlist-form { flex-direction: column; }
+  .waitlist-btn { width: 100%; }
+  nav { flex-direction: column; gap: 16px; }
+}
 </style>
 </head>
 <body>
@@ -653,172 +329,119 @@ const PAGE = `<!DOCTYPE html>
     <div class="logo">Auto <span>Company</span></div>
     <div class="nav-links">
       <a href="/blog">Blog</a>
-      <a href="#waitlist">Waitlist</a>
-      <a href="#products">Products</a>
+      <a href="/#services">Services</a>
       <a href="https://github.com/bakasa" target="_blank" rel="noopener">GitHub</a>
     </div>
   </nav>
 
   <section class="hero">
     <div class="hero-eyebrow">Build tools. Ship products.</div>
-    <h1>An autonomous company<br/>building for <span>developers</span></h1>
+    <h1>Autonomous company<br/>building for <span>developers</span></h1>
     <p class="hero-sub">
-      We design, build, and deploy developer tools and content creation products.
-      No meetings. No managers. Just shipped code.
+      We design, build, and deploy developer tools. No meetings. No managers. Just shipped code.
     </p>
     <div class="hero-stats">
       <div class="hero-stat">
-        <div class="hero-stat-num">3</div>
-        <div class="hero-stat-label">Live Products</div>
+        <div class="hero-stat-num">${SERVICES.length}</div>
+        <div class="hero-stat-label">Live Services</div>
       </div>
       <div class="hero-stat">
-        <div class="hero-stat-num">3</div>
-        <div class="hero-stat-label">Open Source</div>
+        <div class="hero-stat-num" id="uptimeTotal">-</div>
+        <div class="hero-stat-label">Uptime (7d)</div>
       </div>
       <div class="hero-stat">
-        <div class="hero-stat-num" id="totalStatus">-</div>
-        <div class="hero-stat-label">Services Online</div>
+        <div class="hero-stat-num" id="servicesOnline">-</div>
+        <div class="hero-stat-label">Currently Online</div>
       </div>
     </div>
   </section>
 
-  <section class="waitlist" id="waitlist">
-    <div class="waitlist-box">
-      <h2>Get early access</h2>
-      <p>Be the first to know when we launch new products and features. No spam, just shipped code.</p>
-      <form class="waitlist-form" id="waitlistForm">
-        <input type="email" class="waitlist-input" id="waitlistEmail" placeholder="you@example.com" required autocomplete="email" />
-        <button type="submit" class="waitlist-btn" id="waitlistBtn">Join waitlist</button>
-      </form>
-      <div class="waitlist-message" id="waitlistMessage"></div>
-    </div>
-  </section>
-
-  <section class="products" id="products">
-    <p class="section-title">Products</p>
-    <div class="product-grid" id="productGrid">
-    </div>
+  <section class="products" id="services">
+    <p class="section-title">Services</p>
+    <div class="product-grid" id="productGrid"></div>
   </section>
 
   <footer>
     <span>&copy; 2026 Auto Company</span>
-    <a href="https://github.com/bakasa" target="_blank" rel="noopener">GitHub &rarr;</a>
+    <div style="display:flex;align-items:center;gap:20px">
+      <span><a href="https://livestatus-production.up.railway.app/status/4" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;color:var(--text-3);text-decoration:none;font-size:12px"><img src="https://livestatus-production.up.railway.app/badge/4" alt="LiveStatus" height="20" style="border-radius:3px" /> Powered by LiveStatus</a></span>
+      <a href="https://github.com/bakasa" target="_blank" rel="noopener">GitHub &rarr;</a>
+    </div>
   </footer>
 </div>
 
 <script>
-const PRODUCTS = ${JSON.stringify(PRODUCTS)};
+const SERVICES = ${JSON.stringify(SERVICES)};
 
-async function checkStatus(url) {
-  const t0 = performance.now();
+async function fetchStatusApi() {
   try {
-    const res = await fetch(url + '/health', { signal: AbortSignal.timeout(8000) });
-    const ms = Math.round(performance.now() - t0);
-    return { online: res.ok, ms };
-  } catch {
-    return { online: false, ms: 0 };
-  }
+    const res = await fetch('/api/status');
+    if (!res.ok) throw new Error('status api error');
+    return await res.json();
+  } catch { return null; }
 }
 
-function createBadge(online, ms) {
-  if (online === null) {
-    return '<span class="status-badge checking"><span class="dot"></span> checking...</span>';
-  }
-  const cls = online ? 'online' : 'offline';
-  const label = online ? 'Online' : 'Offline';
-  const latency = online && ms ? \`<span class="status-latency">\${ms}ms</span>\` : '';
-  return \`<span class="status-badge \${cls}"><span class="dot"></span> \${label}</span>\${latency}\`;
+function renderTimelineBars(pings, maxBars = 48) {
+  if (!pings || pings.length === 0) return '<span style="color:var(--text-3);font-size:11px">No data</span>';
+  const recent = pings.slice(-maxBars);
+  const up = recent.filter(p => p.online).length;
+  const total = recent.length;
+  const pct = total > 0 ? Math.round(up / total * 100) : 0;
+  return '<div style="display:flex;gap:2px;align-items:flex-end;height:14px">' +
+    recent.map(p => '<div class="timeline-bar ' + (p.online ? 'up' : 'down') + '" title="' + (p.online ? 'Up' : 'Down') + ' ' + p.ms + 'ms"></div>').join('') +
+    '</div><div style="font-size:11px;color:var(--text-3);margin-top:4px">' + pct + '% uptime (' + up + '/' + total + ' checks)</div>';
 }
 
-function renderProducts(statuses) {
+function renderProducts(data) {
   const grid = document.getElementById('productGrid');
+  const statusMap = {};
+  if (data && data.services) {
+    for (const s of data.services) { statusMap[s.id] = s; }
+  }
+
   let onlineCount = 0;
+  grid.innerHTML = SERVICES.map(s => {
+    const status = statusMap[s.id];
+    const online = status ? status.online : null;
+    const ms = status ? status.avg_ms : 0;
+    if (online === true) onlineCount++;
+    const badgeCls = online === null ? 'checking' : online ? 'online' : 'offline';
+    const badgeLabel = online === null ? 'checking...' : online ? 'Online' : 'Offline';
+    const latencyHtml = online ? '<span class="status-latency">' + (ms ? ms + 'ms' : '') + '</span>' : '';
 
-  grid.innerHTML = PRODUCTS.map(p => {
-    const s = statuses[p.id] || { online: null, ms: 0 };
-    if (s.online === true) onlineCount++;
-    const badge = createBadge(s.online, s.ms);
-
-    return \`
-      <a href="\${p.url}" class="product-card" target="_blank" rel="noopener">
-        <div>
-          <div class="product-card-header">
-            <span class="product-name">\${p.name}</span>
-            <span class="product-badge" style="color:\${p.badgeColor};border:1px solid \${p.badgeColor}44;background:\${p.badgeColor}11;">
-              \${p.badge}
-            </span>
-          </div>
-          <p class="product-tagline">\${p.tagline}</p>
-          <p class="product-desc">\${p.description}</p>
-          <div class="product-meta">
-            <span class="product-link">Open app \u2192</span>
-            \${p.github ? \`<a href="\${p.github}" class="product-link" target="_blank" rel="noopener" onclick="event.stopPropagation()">GitHub \u2197</a>\` : ''}
-          </div>
-        </div>
-        <div class="product-status">
-          \${badge}
-        </div>
-      </a>
-    \`;
+    return '<a href="' + s.url + '" class="product-card" target="_blank" rel="noopener">' +
+      '<div class="product-card-inner">' +
+      '<div class="product-card-header">' +
+      '<span class="product-name">' + s.name + '</span>' +
+      '<span class="product-badge" style="color:' + s.badgeColor + ';border:1px solid ' + s.badgeColor + '44;background:' + s.badgeColor + '11;">' + s.badge + '</span>' +
+      '</div>' +
+      '<div class="product-tagline">' + s.tagline + '</div>' +
+      (s.github ? '<span class="product-link">GitHub ↗</span>' : '') +
+      '</div>' +
+      '<div class="product-status">' +
+      '<span class="status-badge ' + badgeCls + '"><span class="dot"></span> ' + badgeLabel + '</span>' +
+      latencyHtml +
+      (status && status.pings ? renderTimelineBars(status.pings) : '') +
+      '</div>' +
+      '</a>';
   }).join('');
 
-  document.getElementById('totalStatus').textContent = onlineCount === PRODUCTS.length ? 'All' : \`\${onlineCount}/\${PRODUCTS.length}\`;
+  document.getElementById('servicesOnline').textContent = onlineCount + '/' + SERVICES.length;
+  if (data && data.aggregate) {
+    document.getElementById('uptimeTotal').textContent = Math.round(data.aggregate.uptime_pct) + '%';
+  }
 }
 
 async function init() {
-  const statuses = {};
-  renderProducts(statuses);
-  for (const p of PRODUCTS) {
-    statuses[p.id] = await checkStatus(p.url);
-    renderProducts(statuses);
-  }
+  renderProducts(null);
+  const data = await fetchStatusApi();
+  renderProducts(data);
 }
-
 init();
-
-const form = document.getElementById('waitlistForm');
-const input = document.getElementById('waitlistEmail');
-const msg = document.getElementById('waitlistMessage');
-const btn = document.getElementById('waitlistBtn');
-
-form.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const email = input.value.trim();
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    msg.textContent = 'Please enter a valid email address.';
-    msg.className = 'waitlist-message error';
-    return;
-  }
-  btn.disabled = true;
-  btn.textContent = 'Joining...';
-  msg.textContent = '';
-  try {
-    const res = await fetch('/waitlist', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
-    });
-    const data = await res.json();
-    if (res.ok) {
-      msg.textContent = 'You\'re on the list! We\'ll keep you posted.';
-      msg.className = 'waitlist-message success';
-      input.value = '';
-    } else {
-      msg.textContent = data.error || 'Something went wrong. Try again.';
-      msg.className = 'waitlist-message error';
-    }
-  } catch {
-    msg.textContent = 'Network error. Please try again.';
-    msg.className = 'waitlist-message error';
-  }
-  btn.disabled = false;
-  btn.textContent = 'Join waitlist';
-});
 </script>
 </body>
 </html>`
 
-const DATA_DIR = path.join(process.cwd(), 'data')
 const WAITLIST_FILE = path.join(DATA_DIR, 'waitlist.json')
 
 async function ensureDataDir() {
@@ -843,6 +466,40 @@ async function saveEmail(email: string) {
 }
 
 app.get('/', c => c.html(PAGE))
+
+app.get('/api/status', async c => {
+  const servicesData = await Promise.all(SERVICES.map(async s => {
+    const stats = await getServiceStats(s.id)
+    const pings = await getRecentPings(s.id)
+    const online = pings.length > 0 ? pings[pings.length - 1].online : null
+    return {
+      id: s.id,
+      name: s.name,
+      online,
+      total_checks: stats.total_checks,
+      up_checks: stats.up_checks,
+      avg_ms: stats.avg_ms,
+      last_check: stats.last_check,
+      pings: pings.map(p => ({ online: p.online, ms: p.ms, checked_at: p.checked_at })),
+    }
+  }))
+
+  const totalUp = servicesData.filter(s => s.online === true).length
+  const totalChecks = servicesData.reduce((a, s) => a + s.total_checks, 0)
+  const totalUpChecks = servicesData.reduce((a, s) => a + s.up_checks, 0)
+  const uptimePct = totalChecks > 0 ? (totalUpChecks / totalChecks * 100) : 100
+
+  return c.json({
+    services: servicesData,
+    aggregate: {
+      online: totalUp,
+      total: SERVICES.length,
+      uptime_pct: uptimePct,
+      total_checks: totalChecks,
+    },
+    generated_at: new Date().toISOString(),
+  })
+})
 
 app.post('/waitlist', async c => {
   try {
@@ -903,7 +560,6 @@ footer a:hover { color: var(--text-1); }
 h1 { font-size: 36px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.15; }
 h2 { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.25; margin-top: 48px; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
 h3 { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; margin-top: 32px; margin-bottom: 12px; }
-h2:first-of-type { margin-top: 0; }
 p { margin-bottom: 20px; line-height: 1.75; color: var(--text-2); }
 a { color: var(--accent); text-decoration: none; }
 a:hover { color: #FBBF24; }
@@ -911,9 +567,7 @@ ul, ol { margin-bottom: 20px; padding-left: 24px; color: var(--text-2); }
 li { margin-bottom: 8px; line-height: 1.7; }
 pre { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 20px; overflow-x: auto; margin-bottom: 24px; font-family: var(--font-mono); font-size: 13px; line-height: 1.7; color: var(--cyan); }
 code { font-family: var(--font-mono); font-size: 13px; background: var(--surface); padding: 2px 6px; border-radius: 4px; color: var(--cyan); }
-pre code { background: none; padding: 0; color: inherit; }
 hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
-blockquote { border-left: 3px solid var(--accent); padding-left: 20px; margin-bottom: 20px; color: var(--text-2); font-style: italic; }
 .blog-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 28px; transition: border-color 0.2s; text-decoration: none; color: inherit; display: block; margin-bottom: 16px; }
 .blog-card:hover { border-color: var(--accent); }
 .blog-card-title { font-family: var(--font-mono); font-size: 16px; font-weight: 500; color: var(--text-1); margin-bottom: 8px; }
@@ -933,7 +587,6 @@ blockquote { border-left: 3px solid var(--accent); padding-left: 20px; margin-bo
     <div class="nav-links">
       <a href="/">Home</a>
       <a href="/blog" class="active">Blog</a>
-      <a href="/#waitlist">Waitlist</a>
       <a href="https://github.com/bakasa" target="_blank" rel="noopener">GitHub</a>
     </div>
   </nav>
@@ -942,7 +595,10 @@ blockquote { border-left: 3px solid var(--accent); padding-left: 20px; margin-bo
 const BLOG_FOOT = `
   <footer>
     <span>&copy; 2026 Auto Company</span>
-    <a href="/">Home &rarr;</a>
+    <div style="display:flex;align-items:center;gap:20px">
+      <span><a href="https://livestatus-production.up.railway.app/status/4" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;color:var(--text-3);text-decoration:none;font-size:12px"><img src="https://livestatus-production.up.railway.app/badge/4" alt="LiveStatus" height="20" style="border-radius:3px" /> Powered by LiveStatus</a></span>
+      <a href="/">Home &rarr;</a>
+    </div>
   </footer>
 </div>
 </body>
@@ -991,12 +647,12 @@ app.get('/blog/:slug', c => {
 app.get('/sitemap.xml', c => {
   const urls = [
     { loc: SITE_URL, priority: '1.0', changefreq: 'weekly' },
-    { loc: `${SITE_URL}/#products`, priority: '0.8', changefreq: 'weekly' },
+    { loc: `${SITE_URL}/#services`, priority: '0.8', changefreq: 'weekly' },
     { loc: `${SITE_URL}/blog`, priority: '0.7', changefreq: 'weekly' },
     ...BLOG_POSTS.map(p => ({ loc: `${SITE_URL}/blog/${p.slug}`, priority: '0.6', changefreq: 'monthly' })),
   ]
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.w3.org/2000/svg">
 ${urls.map(u => `  <url>
     <loc>${u.loc}</loc>
     <priority>${u.priority}</priority>
