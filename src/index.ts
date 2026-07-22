@@ -7,12 +7,257 @@ import { join } from 'path'
 
 const app = new Hono()
 
+const SNAPSHOT_PAGE = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SnapShot API — Website Screenshots via curl, Zero Signup</title>
+<meta name="description" content="Take full-page website screenshots with a single curl command. No signup, no email, instant API key. Free tier: 100 screenshots/month." />
+<link rel="canonical" href="${'https://company-site-production-9f58.up.railway.app'}/snapshot" />
+<meta property="og:title" content="SnapShot API — Screenshots via curl, Zero Signup" />
+<meta property="og:description" content="Take full-page website screenshots with one curl command. No signup. Instant key." />
+<meta property="og:image" content="https://snapog-production.up.railway.app/preview?title=SnapShot+API&description=Website+screenshots+via+curl.+Zero+signup.&template=default&theme=dark" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="${'https://company-site-production-9f58.up.railway.app'}/snapshot" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="SnapShot API — Screenshots via curl, Zero Signup" />
+<meta name="twitter:description" content="Take full-page website screenshots with one curl command. No signup. Instant key." />
+<script defer data-domain="company-site-production-9f58.up.railway.app" src="https://plausible.io/js/script.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Unbond:wght@700;800&display=swap" rel="stylesheet" />
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0B0D12;--bg-alt:#0F1219;--surface:#141820;--surface-hover:#1A1F2B;--border:#1F2535;--border-light:#2A3045;--text-1:#EDEEF0;--text-2:#969CA8;--text-3:#545A68;--cyan:#22D3EE;--cyan-dim:rgba(34,211,238,0.1);--cyan-glow:rgba(34,211,238,0.12);--amber:#D97706;--green:#22C55E;--red:#EF4444;--font-sans:'DM Sans',system-ui,sans-serif;--font-mono:'DM Mono','SF Mono',monospace;--font-display:'DM Sans',system-ui,sans-serif;--r:10px;--r-lg:16px}
+body{background:var(--bg);color:var(--text-1);font-family:var(--font-sans);font-size:16px;line-height:1.6;min-height:100vh;overflow-x:hidden}
+.bg-grid{position:fixed;inset:0;pointer-events:none;z-index:0;background-image:linear-gradient(rgba(255,255,255,0.015) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.015) 1px,transparent 1px);background-size:48px 48px}
+.bg-gradient{position:fixed;top:-30vh;right:-15vw;width:60vw;height:70vh;background:radial-gradient(ellipse at center,var(--cyan-glow) 0%,transparent 70%);pointer-events:none;z-index:0}
+.spot{position:fixed;bottom:-20vh;left:-10vw;width:50vw;height:50vh;background:radial-gradient(ellipse at center,var(--cyan-dim) 0%,transparent 60%);pointer-events:none;z-index:0}
+.container{position:relative;z-index:1;max-width:960px;margin:0 auto;padding:0 24px}
+nav{display:flex;align-items:center;justify-content:space-between;padding:28px 0;border-bottom:1px solid var(--border)}
+.logo{font-family:var(--font-mono);font-weight:500;font-size:18px;color:var(--text-1);text-decoration:none;letter-spacing:-0.02em}
+.logo span{color:var(--cyan)}
+.nav-links{display:flex;gap:28px;align-items:center}
+.nav-links a{color:var(--text-2);text-decoration:none;font-size:14px;transition:color 0.15s}
+.nav-links a:hover{color:var(--text-1)}
+.hero{padding:80px 0 64px;text-align:center}
+.hero-eyebrow{font-family:var(--font-mono);font-size:12px;color:var(--cyan);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:20px;display:inline-flex;align-items:center;gap:8px}
+.hero-eyebrow::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--cyan);animation:pulse-dot 2s ease-in-out infinite}
+@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:0.4}}
+.hero h1{font-size:clamp(36px,5.5vw,56px);font-weight:700;letter-spacing:-0.04em;line-height:1.05;margin-bottom:16px}
+.hero h1 span{background:linear-gradient(135deg,var(--cyan),#67E8F9);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hero-sub{font-size:18px;color:var(--text-2);max-width:560px;margin:0 auto;line-height:1.65}
+.hero-cta{display:flex;gap:12px;justify-content:center;margin-top:32px;flex-wrap:wrap}
+.btn{background:var(--cyan);color:#0B0D12;border:none;border-radius:var(--r);padding:14px 28px;font-family:var(--font-sans);font-size:16px;font-weight:600;cursor:pointer;transition:background 0.15s,transform 0.1s;white-space:nowrap;display:inline-flex;align-items:center;gap:8px;text-decoration:none}
+.btn:hover{background:#67E8F9;transform:translateY(-1px)}
+.btn-outline{background:transparent;color:var(--cyan);border:1px solid var(--cyan);padding:13px 27px}
+.btn-outline:hover{background:var(--cyan-dim);border-color:#67E8F9;color:#67E8F9}
+.terminal-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:24px;margin:48px auto;max-width:680px;position:relative}
+.terminal-box::before{content:'$';position:absolute;top:24px;left:24px;font-family:var(--font-mono);font-size:13px;color:var(--text-3)}
+.terminal-box pre{padding-left:20px;font-family:var(--font-mono);font-size:13px;line-height:1.8;color:var(--text-2);overflow-x:auto;white-space:pre-wrap}
+.terminal-box .cmd{color:var(--green)}
+.terminal-box .output{color:var(--cyan)}
+.section{padding:0 0 80px}
+.section-title{font-family:var(--font-mono);font-size:12px;color:var(--text-3);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.features{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-bottom:48px}
+.feature-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:28px;transition:border-color 0.2s,transform 0.15s}
+.feature-card:hover{border-color:var(--cyan);transform:translateY(-2px)}
+.feature-icon{font-family:var(--font-mono);font-size:24px;margin-bottom:12px;display:block}
+.feature-card h3{font-size:16px;font-weight:600;margin-bottom:8px;color:var(--text-1)}
+.feature-card p{font-size:14px;color:var(--text-2);line-height:1.6}
+.pricing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:48px}
+.pricing-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:32px;text-align:center;transition:border-color 0.2s,transform 0.15s;position:relative}
+.pricing-card.featured{border-color:var(--cyan);background:linear-gradient(135deg,var(--surface),var(--cyan-dim))}
+.pricing-card.featured::before{content:'Most Popular';position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--cyan);color:#0B0D12;font-family:var(--font-mono);font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;padding:4px 14px;border-radius:100px}
+.pricing-card h3{font-size:14px;font-family:var(--font-mono);color:var(--text-3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px}
+.pricing-card .price{font-family:var(--font-mono);font-size:36px;font-weight:600;color:var(--text-1);margin-bottom:4px}
+.pricing-card .price span{font-size:16px;color:var(--text-3)}
+.pricing-card .desc{font-size:13px;color:var(--text-2);margin-bottom:20px;min-height:40px}
+.pricing-card ul{list-style:none;padding:0;margin:0 0 24px;text-align:left}
+.pricing-card ul li{padding:8px 0;font-size:13px;color:var(--text-2);border-top:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.pricing-card ul li::before{content:'â\x9C\x93';color:var(--cyan);font-weight:600}
+.pricing-card .pricing-btn{display:inline-block;background:transparent;border:1px solid var(--border);border-radius:var(--r);padding:12px 24px;font-family:var(--font-sans);font-size:14px;font-weight:500;color:var(--text-1);text-decoration:none;transition:all 0.15s;width:100%}
+.pricing-card .pricing-btn:hover{background:var(--surface-hover);border-color:var(--text-3)}
+.pricing-card.featured .pricing-btn{background:var(--cyan);color:#0B0D12;border-color:var(--cyan);font-weight:600}
+.pricing-card.featured .pricing-btn:hover{background:#67E8F9}
+.use-cases{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.use-case{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:24px}
+.use-case h3{font-size:15px;font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.use-case h3 .tag{font-family:var(--font-mono);font-size:10px;font-weight:500;letter-spacing:0.04em;padding:2px 8px;border-radius:4px;background:var(--cyan-dim);color:var(--cyan)}
+.use-case p{font-size:13px;color:var(--text-2);line-height:1.6}
+.use-case pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:12px;margin-top:12px;font-family:var(--font-mono);font-size:12px;color:var(--text-2);overflow-x:auto}
+.referral-box{background:linear-gradient(135deg,var(--cyan-dim),transparent);border:1px solid var(--border);border-radius:var(--r-lg);padding:40px;text-align:center;margin-top:48px}
+.referral-box h2{font-size:22px;font-weight:600;margin-bottom:8px;color:var(--text-1)}
+.referral-box p{font-size:15px;color:var(--text-2);margin-bottom:20px}
+.referral-box .highlight{color:var(--cyan);font-weight:600}
+footer{border-top:1px solid var(--border);padding:32px 0;display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--text-3);margin-top:40px}
+footer a{color:var(--text-2);text-decoration:none}
+footer a:hover{color:var(--text-1)}
+@media(max-width:640px){.hero{padding:40px 0 32px}.hero-cta{flex-direction:column;align-items:center}nav{flex-direction:column;gap:16px}.pricing-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="bg-gradient"></div>
+<div class="spot"></div>
+<div class="container">
+  <nav>
+    <a href="/" class="logo">Auto <span>Company</span></a>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/playground">Playground</a>
+      <a href="/blog">Blog</a>
+      <a href="https://github.com/bakasa/snapshot-api" target="_blank" rel="noopener">GitHub</a>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <div class="hero-eyebrow">v1.0 — Open Source</div>
+    <h1>Website screenshots<br/>with <span>one curl command</span></h1>
+    <p class="hero-sub">Instant API key. No signup. No email. Just you, your terminal, and a full-page PNG.</p>
+    <div class="hero-cta">
+      <a href="https://snapshot-api-production-1374.up.railway.app" class="btn">Get Your API Key</a>
+      <a href="/playground" class="btn btn-outline">Try the Playground</a>
+      <a href="https://github.com/bakasa/snapshot-api" class="btn btn-outline" style="border-color:var(--border)">GitHub â\x86\x97</a>
+    </div>
+  </section>
+
+  <div class="terminal-box">
+    <pre><span class="cmd"># Get an instant API key — no signup</span>
+<span class="output">$ curl https://snapshot-api-production-1374.up.railway.app/key
+{"key":"ss_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","referral_code":"abc123"}</span>
+
+<span class="cmd"># Take a screenshot</span>
+<span class="output">$ curl "https://snapshot-api-production-1374.up.railway.app/screenshot?url=https://example.com&key=ss_xxx" > screenshot.png</span>
+
+<span class="cmd"># From zero to PNG in ~10 seconds</span></pre>
+  </div>
+
+  <section class="section">
+    <p class="section-title">Why SnapShot API</p>
+    <div class="features">
+      <div class="feature-card">
+        <span class="feature-icon">00</span>
+        <h3>Zero Signup</h3>
+        <p>Get a key with one curl call. No email, no OAuth, no dashboard to navigate. Your first screenshot in under 10 seconds.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">â\x86\x91</span>
+        <h3>Referral Bonuses</h3>
+        <p>Share your referral link — both parties get +50 screenshots/month. Stackable, unlimited. Your usage grows with your network.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">â\x9E¡</span>
+        <h3>Full-Page Captures</h3>
+        <p>Captures the entire page, not just the viewport. Works for any public URL. Returns a clean PNG ready for storage or processing.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">{ }</span>
+        <h3>JSON API</h3>
+        <p>Simple REST endpoint. Returns PNG bytes or JSON errors. No SDK needed — works with curl, fetch, axios, or any HTTP client.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <p class="section-title">Pricing</p>
+    <div class="pricing-grid">
+      <div class="pricing-card">
+        <h3>Free</h3>
+        <div class="price">100 <span>/mo</span></div>
+        <div class="desc">For side projects, weekend hacks, and experiments</div>
+        <ul>
+          <li>100 screenshots/month</li>
+          <li>Instant API key via curl</li>
+          <li>Referral bonuses (unlimited)</li>
+          <li>Full-page PNG</li>
+        </ul>
+        <a href="https://snapshot-api-production-1374.up.railway.app" class="pricing-btn">Get Started</a>
+      </div>
+      <div class="pricing-card featured">
+        <h3>Pro</h3>
+        <div class="price">$15 <span>/mo</span></div>
+        <div class="desc">For developers, dashboards, and CI/CD pipelines</div>
+        <ul>
+          <li>1,000 screenshots/month</li>
+          <li>Priority support</li>
+          <li>JPEG / PNG format selection</li>
+          <li>Custom viewport sizes</li>
+        </ul>
+        <a href="/" class="pricing-btn" onclick="event.preventDefault();alert('Stripe billing incoming — join the waitlist on the homepage.')">Coming Soon</a>
+      </div>
+      <div class="pricing-card">
+        <h3>Business</h3>
+        <div class="price">$49 <span>/mo</span></div>
+        <div class="desc">For teams, agencies, and production workloads</div>
+        <ul>
+          <li>10,000 screenshots/month</li>
+          <li>Priority support</li>
+          <li>PDF output</li>
+          <li>Wait-for-selector support</li>
+          <li>Custom viewport sizes</li>
+        </ul>
+        <a href="/" class="pricing-btn" onclick="event.preventDefault();alert('Stripe billing incoming — join the waitlist on the homepage.')">Coming Soon</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <p class="section-title">Use Cases</p>
+    <div class="use-cases">
+      <div class="use-case">
+        <h3>Dashboard Monitoring <span class="tag">cron</span></h3>
+        <p>Snapshot your dashboards every hour and archive them. Compare over time, detect outages visually.</p>
+        <pre>0 * * * * curl "..." > dash-$(date +%H).png</pre>
+      </div>
+      <div class="use-case">
+        <h3>CI/CD Visual Diff <span class="tag">ci</span></h3>
+        <p>Capture staging after every deploy. Compare against prod to catch visual regressions before they ship.</p>
+        <pre>curl "..." > staging-$(git rev-parse --short HEAD).png</pre>
+      </div>
+      <div class="use-case">
+        <h3>Price Monitoring <span class="tag">data</span></h3>
+        <p>Track competitor pricing pages, product listings, and availability indicators over time.</p>
+        <pre>curl "..." > competitor-$(date +%F).png</pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="referral-box">
+      <h2>Share & Earn More Capacity</h2>
+      <p>Every referral gives <span class="highlight">both</span> you and your friend <span class="highlight">+50 screenshots/month</span>. No cap. Stackable. Share your link:</p>
+      <div class="terminal-box" style="margin:0 auto;max-width:500px;text-align:left">
+        <pre><span class="output">https://snapshot-api-production-1374.up.railway.app/?ref=YOUR_CODE</span></pre>
+      </div>
+      <p style="margin-top:24px;font-size:14px">Your referral code is in the JSON response when you get your API key.</p>
+    </div>
+  </section>
+
+  <footer>
+    <span>&copy; 2026 Auto Company</span>
+    <div style="display:flex;align-items:center;gap:20px">
+      <a href="/">Home &rarr;</a>
+      <a href="https://github.com/bakasa/snapshot-api" target="_blank" rel="noopener">GitHub</a>
+    </div>
+  </footer>
+</div>
+</body>
+</html>`
+
+
 const OG_TITLE = 'Auto Company — Build tools. Ship products.'
 const OG_DESC = 'Auto Company builds developer tools and content creation products. Live service dashboard.'
 const OG_IMAGE = 'https://snapog-production.up.railway.app/preview?title=Auto+Company&description=Build+tools.+Ship+products.&template=default&theme=dark'
 const SITE_URL = 'https://company-site-production-9f58.up.railway.app'
+const DEMO_API_KEY = 'ss_60547943423dc73b44f77e28c68b2641a5a97d601ac91772'
 
 const SERVICES: Array<{ id: string; name: string; tagline: string; url: string; github: string | null; badge: string; badgeColor: string; healthPath: string }> = [
+  { id: 'snapshot-api', name: 'SnapShot', tagline: 'Website screenshot API — instant key via curl', url: 'https://snapshot-api-production-1374.up.railway.app', github: 'https://github.com/bakasa/snapshot-api', badge: 'API', badgeColor: '#06B6D4', healthPath: '/health' },
   { id: 'reqdump', name: 'ReqDump', tagline: 'HTTP request inspector & webhook debugger', url: 'https://reqdump-production.up.railway.app', github: 'https://github.com/bakasa/reqdump', badge: 'Open Source', badgeColor: '#22C55E', healthPath: '/health' },
   { id: 'snapog', name: 'SnapOG', tagline: 'OG image generation API', url: 'https://snapog-production.up.railway.app', github: 'https://github.com/bakasa/snapog', badge: 'API', badgeColor: '#F59E0B', healthPath: '/health' },
   { id: 'omnipost', name: 'OmniPost', tagline: 'Cross-platform content studio', url: 'https://omnipost-production-38f9.up.railway.app', github: 'https://github.com/bakasa/omnipost', badge: 'Studio', badgeColor: '#A855F7', healthPath: '/health' },
@@ -91,6 +336,47 @@ checkAllServices()
 setInterval(checkAllServices, 5 * 60 * 1000)
 
 const BLOG_POSTS = [
+  {
+    slug: 'website-screenshot-api-curl',
+    title: 'How to Take Automated Website Screenshots with curl (Zero Signup)',
+    excerpt: 'Get a screenshot of any webpage via API in under 10 seconds — no signup, no OAuth, no email. Just curl and a URL.',
+    date: '2026-07-22',
+    tags: ['tutorial', 'api', 'screenshots', 'automation'],
+    content: `
+<h2>Why Automate Screenshots?</h2>
+<p>Manual screenshots don't scale. Whether you need daily dashboard snapshots, CI/CD visual diffs, OG image previews, or monitoring alerts — a scriptable screenshot API saves hours.</p>
+<p><a href="https://snapshot-api-production-1374.up.railway.app">SnapShot API</a> is the simplest way to automate this. One endpoint, instant key, no signup.</p>
+<h2>Get a Key (No Signup)</h2>
+<pre>curl https://snapshot-api-production-1374.up.railway.app/key</pre>
+<p>That's it. A JSON response with your <code>key</code> and <code>referral_code</code>. No email, no OAuth, no billing info.</p>
+<h2>Take a Screenshot</h2>
+<pre>curl "https://snapshot-api-production-1374.up.railway.app/screenshot?url=https://example.com&amp;key=YOUR_KEY" > screenshot.png</pre>
+<p>The API returns a full-page PNG. Works for any public URL.</p>
+<h2>Use Cases</h2>
+<h3>Dashboard Monitoring</h3>
+<p>Schedule a cron job to snapshot your dashboards every hour:</p>
+<pre>0 * * * * curl "https://snapshot-api-production-1374.up.railway.app/screenshot?url=https://metrics.example.com/dashboard&amp;key=YOUR_KEY" > /data/dash-\$(date +\\%Y\\%m\\%d\\%H).png</pre>
+<h3>CI/CD Visual Regression</h3>
+<p>Capture your staging site after every deploy, compare against production baseline:</p>
+<pre>curl "https://snapshot-api-production-1374.up.railway.app/screenshot?url=https://staging.example.com&amp;key=YOUR_KEY" > staging-snapshot.png</pre>
+<h3>AI/LLM Context</h3>
+<p>Feed webpage screenshots into vision models for analysis — product pages, documentation, competitor sites.</p>
+<h3>Price Monitoring</h3>
+<p>Track competitor pricing pages, product listings, or availability indicators over time.</p>
+<h2>Share &amp; Earn More Capacity</h2>
+<p>Each user gets a referral link. When someone signs up using it, <strong>both</strong> parties get +50 monthly screenshots. Stackable. No limit.</p>
+<pre># Your referral link
+https://snapshot-api-production-1374.up.railway.app/?ref=YOUR_CODE</pre>
+<h2>Pricing</h2>
+<ul>
+<li><strong>Free</strong> — 100 screenshots/month, instant key, referral bonuses</li>
+<li><strong>Pro</strong> ($15) — 1,000/month (coming soon)</li>
+<li><strong>Business</strong> ($49) — 10,000/month (coming soon)</li>
+</ul>
+<p>Or <strong>try it right now</strong> in the <a href="https://company-site-production-9f58.up.railway.app/playground">interactive playground</a> — no API key required.</p>
+<p>Start at <a href="https://snapshot-api-production-1374.up.railway.app">snapshot-api-production-1374.up.railway.app</a> or browse the <a href="https://github.com/bakasa/snapshot-api">source on GitHub</a>.</p>
+`
+  },
   {
     slug: 'self-host-request-inspector-security',
     title: 'Stop Pasting Webhooks Into Strangers\' Services — Self-Host Your Request Inspector',
@@ -328,6 +614,8 @@ footer a:hover { color: var(--text-1); }
   <nav>
     <div class="logo">Auto <span>Company</span></div>
     <div class="nav-links">
+      <a href="/snapshot">SnapShot</a>
+      <a href="/playground">Playground</a>
       <a href="/blog">Blog</a>
       <a href="/#services">Services</a>
       <a href="https://github.com/bakasa" target="_blank" rel="noopener">GitHub</a>
@@ -648,6 +936,8 @@ app.get('/sitemap.xml', c => {
   const urls = [
     { loc: SITE_URL, priority: '1.0', changefreq: 'weekly' },
     { loc: `${SITE_URL}/#services`, priority: '0.8', changefreq: 'weekly' },
+    { loc: `${SITE_URL}/snapshot`, priority: '0.9', changefreq: 'weekly' },
+    { loc: `${SITE_URL}/playground`, priority: '0.8', changefreq: 'weekly' },
     { loc: `${SITE_URL}/blog`, priority: '0.7', changefreq: 'weekly' },
     ...BLOG_POSTS.map(p => ({ loc: `${SITE_URL}/blog/${p.slug}`, priority: '0.6', changefreq: 'monthly' })),
   ]
@@ -668,6 +958,256 @@ Allow: /
 Sitemap: ${SITE_URL}/sitemap.xml
 `
   return c.newResponse(text, 200, { 'Content-Type': 'text/plain' })
+})
+
+app.get('/playground', c => {
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SnapShot API Playground — Auto Company</title>
+<meta name="description" content="Try the SnapShot API live from your browser. Enter any URL and see an instant screenshot." />
+<link rel="canonical" href="${SITE_URL}/playground" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0B0D12;--bg-alt:#11141D;--surface:#181C27;--surface-hover:#1F2433;--border:#242938;--border-light:#2E3444;--text-1:#EDEEF0;--text-2:#969CA8;--text-3:#545A68;--accent:#D97706;--accent-glow:rgba(217,119,6,0.15);--green:#22C55E;--red:#EF4444;--font-sans:'DM Sans',system-ui,sans-serif;--font-mono:'DM Mono','SF Mono',monospace;--r:10px;--r-lg:16px}
+body{background:var(--bg);color:var(--text-1);font-family:var(--font-sans);font-size:16px;line-height:1.6;min-height:100vh}
+.bg-grid{position:fixed;inset:0;pointer-events:none;z-index:0;background-image:linear-gradient(rgba(255,255,255,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.02) 1px,transparent 1px);background-size:48px 48px}
+.container{position:relative;z-index:1;max-width:880px;margin:0 auto;padding:0 24px}
+nav{display:flex;align-items:center;justify-content:space-between;padding:28px 0;border-bottom:1px solid var(--border)}
+.logo{font-family:var(--font-mono);font-weight:500;font-size:18px;color:var(--text-1);text-decoration:none;letter-spacing:-0.02em}
+.logo span{color:var(--accent)}
+.nav-links{display:flex;gap:28px;align-items:center}
+.nav-links a{color:var(--text-2);text-decoration:none;font-size:14px;transition:color 0.15s}
+.nav-links a:hover{color:var(--text-1)}
+.nav-links a.active{color:var(--accent)}
+h1{font-size:32px;font-weight:700;letter-spacing:-0.03em;line-height:1.15;margin-bottom:8px}
+h2{font-size:20px;font-weight:600;margin-bottom:12px;margin-top:32px}
+p{color:var(--text-2);margin-bottom:16px;line-height:1.65}
+.demo-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:32px;margin:32px 0}
+.input-row{display:flex;gap:12px;margin-bottom:20px}
+.input-row input{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:14px 18px;font-family:var(--font-sans);font-size:16px;color:var(--text-1);outline:none;transition:border-color 0.2s}
+.input-row input:focus{border-color:var(--accent)}
+.input-row input::placeholder{color:var(--text-3)}
+.btn{background:var(--accent);color:#0B0D12;border:none;border-radius:var(--r);padding:14px 28px;font-family:var(--font-sans);font-size:16px;font-weight:600;cursor:pointer;transition:background 0.15s,transform 0.1s;white-space:nowrap;display:inline-flex;align-items:center;gap:8px}
+.btn:hover{background:#F59E0B;transform:translateY(-1px)}
+.btn:disabled{opacity:0.5;cursor:not-allowed;transform:none}
+.presets{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px}
+.preset-btn{background:transparent;border:1px solid var(--border);border-radius:var(--r);padding:8px 14px;font-family:var(--font-mono);font-size:12px;color:var(--text-2);cursor:pointer;transition:all 0.15s}
+.preset-btn:hover{border-color:var(--accent);color:var(--accent)}
+.result-area{display:none;margin-top:24px}
+.result-area.visible{display:block}
+.result-img{width:100%;border-radius:var(--r);border:1px solid var(--border);background:var(--bg-alt)}
+.result-meta{display:flex;gap:16px;margin:12px 0;font-family:var(--font-mono);font-size:12px;color:var(--text-3);flex-wrap:wrap}
+.spinner{display:none;text-align:center;padding:48px 0;color:var(--text-3)}
+.spinner.active{display:block}
+.spinner-dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--accent);animation:bounce 1.2s ease-in-out infinite}
+.spinner-dot:nth-child(2){animation-delay:0.2s;background:var(--green)}
+.spinner-dot:nth-child(3){animation-delay:0.4s}
+@keyframes bounce{0%,80%,100%{transform:scale(0.6);opacity:0.3}40%{transform:scale(1);opacity:1}}
+.error-box{background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);border-radius:var(--r);padding:16px;color:var(--red);font-size:14px;display:none;margin-top:16px}
+.error-box.visible{display:block}
+.curl-box{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:16px 20px;margin-top:20px;font-family:var(--font-mono);font-size:13px;color:var(--green);overflow-x:auto;position:relative}
+.curl-box .copy-btn{position:absolute;top:10px;right:10px;background:var(--surface);border:1px solid var(--border);color:var(--text-2);padding:4px 10px;border-radius:4px;font-size:11px;cursor:pointer;font-family:var(--font-mono);transition:all 0.15s}
+.curl-box .copy-btn:hover{background:var(--surface-hover);color:var(--text-1)}
+footer{border-top:1px solid var(--border);padding:32px 0;display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--text-3);margin-top:60px}
+footer a{color:var(--text-2);text-decoration:none}
+footer a:hover{color:var(--text-1)}
+@media(max-width:640px){.input-row{flex-direction:column}nav{flex-direction:column;gap:16px}h1{font-size:24px}.demo-box{padding:20px}}
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="container">
+<nav>
+  <a href="/" class="logo">Auto <span>Company</span></a>
+  <div class="nav-links">
+    <a href="/">Home</a>
+    <a href="/playground" class="active">Playground</a>
+    <a href="/blog">Blog</a>
+    <a href="https://github.com/bakasa" target="_blank" rel="noopener">GitHub</a>
+  </div>
+</nav>
+
+<div style="margin:48px 0 0">
+  <h1>SnapShot API Playground</h1>
+  <p>Enter any URL below and see an instant screenshot — powered by <a href="https://snapshot-api-production-1374.up.railway.app" style="color:var(--accent)">SnapShot API</a>. No API key needed for this demo.</p>
+
+  <div class="demo-box">
+    <div class="presets">
+      <button class="preset-btn" onclick="setUrl('https://news.ycombinator.com')">Hacker News</button>
+      <button class="preset-btn" onclick="setUrl('https://example.com')">example.com</button>
+      <button class="preset-btn" onclick="setUrl('https://github.com/bakasa/snapshot-api')">SnapShot GitHub</button>
+      <button class="preset-btn" onclick="setUrl('https://www.wikipedia.org')">Wikipedia</button>
+    </div>
+    <div class="input-row">
+      <input type="url" id="urlInput" placeholder="https://example.com" value="https://news.ycombinator.com" autofocus />
+      <button class="btn" id="captureBtn" onclick="capture()">Capture</button>
+    </div>
+
+    <div class="spinner" id="spinner">
+      <span class="spinner-dot"></span>
+      <span class="spinner-dot"></span>
+      <span class="spinner-dot"></span>
+      <div style="margin-top:16px;color:var(--text-3);font-size:14px">Taking screenshot...</div>
+    </div>
+
+    <div class="error-box" id="errorBox"></div>
+
+    <div class="result-area" id="resultArea">
+      <img class="result-img" id="resultImg" alt="Screenshot preview" />
+      <div class="result-meta">
+        <span id="resultStatus"></span>
+        <span id="resultDimensions"></span>
+        <span id="resultTime"></span>
+      </div>
+      <div class="curl-box">
+        <button class="copy-btn" onclick="copyCurl()">Copy</button>
+        <code id="curlCommand"># Your screenshot will appear below</code>
+      </div>
+    </div>
+  </div>
+
+  <h2>How to use the API</h2>
+  <div class="curl-box" style="margin-top:0">
+    <code># Get a free API key
+curl https://snapshot-api-production-1374.up.railway.app/key
+
+# Take a screenshot
+curl -H "Authorization: Bearer YOUR_KEY" \
+  "https://snapshot-api-production-1374.up.railway.app/screenshot?url=https://example.com" \
+  -o screenshot.png</code>
+  </div>
+
+  <p style="margin-top:24px">Full API docs at <a href="https://snapshot-api-production-1374.up.railway.app" style="color:var(--accent)">snapshot-api-production-1374.up.railway.app</a></p>
+</div>
+
+<footer>
+  <span>&copy; 2026 Auto Company</span>
+  <div style="display:flex;align-items:center;gap:20px">
+    <a href="/">Home &rarr;</a>
+  </div>
+</footer>
+</div>
+
+<script>
+const API_URL = '${SITE_URL}';
+const INPUT = document.getElementById('urlInput');
+const RESULT_AREA = document.getElementById('resultArea');
+const RESULT_IMG = document.getElementById('resultImg');
+const RESULT_STATUS = document.getElementById('resultStatus');
+const RESULT_DIM = document.getElementById('resultDimensions');
+const RESULT_TIME = document.getElementById('resultTime');
+const CURL_CMD = document.getElementById('curlCommand');
+const SPINNER = document.getElementById('spinner');
+const ERROR_BOX = document.getElementById('errorBox');
+const BTN = document.getElementById('captureBtn');
+
+function setUrl(url) {
+  INPUT.value = url;
+  capture();
+}
+
+async function capture() {
+  let url = INPUT.value.trim();
+  if (!url) { showError('Please enter a URL'); return; }
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = 'https://' + url;
+  }
+
+  hideError();
+  RESULT_AREA.classList.remove('visible');
+  SPINNER.classList.add('active');
+  BTN.disabled = true;
+  BTN.textContent = 'Capturing...';
+
+  try {
+    const t0 = performance.now();
+    const r = await fetch('/api/playground-screenshot?url=' + encodeURIComponent(url));
+    const took = Math.round(performance.now() - t0);
+
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({ error: r.statusText }));
+      showError(err.error || 'Request failed (' + r.status + ')');
+      return;
+    }
+
+    const blob = await r.blob();
+    const imgUrl = URL.createObjectURL(blob);
+
+    RESULT_IMG.onload = () => {
+      RESULT_DIM.textContent = RESULT_IMG.naturalWidth + 'x' + RESULT_IMG.naturalHeight + 'px';
+    };
+    RESULT_IMG.src = imgUrl;
+    RESULT_STATUS.textContent = '200 OK';
+    RESULT_TIME.textContent = took + 'ms';
+    CURL_CMD.textContent = '# Try it yourself:\ncurl -H "Authorization: Bearer YOUR_KEY" \\\n  "' + window.location.origin.replace('/playground','') + '/screenshot?url=' + encodeURIComponent(url) + '" \\\n  -o screenshot.png';
+
+    RESULT_AREA.classList.add('visible');
+  } catch (e) {
+    showError('Network error: ' + e.message);
+  } finally {
+    SPINNER.classList.remove('active');
+    BTN.disabled = false;
+    BTN.textContent = 'Capture';
+  }
+}
+
+function showError(msg) {
+  ERROR_BOX.textContent = msg;
+  ERROR_BOX.classList.add('visible');
+}
+
+function hideError() {
+  ERROR_BOX.textContent = '';
+  ERROR_BOX.classList.remove('visible');
+}
+
+async function copyCurl() {
+  try {
+    await navigator.clipboard.writeText(CURL_CMD.textContent.replace(/^#.*\n/, '').trim());
+  } catch {}
+}
+
+capture();
+</script>
+</body>
+</html>`
+  return c.html(html)
+})
+
+app.get('/snapshot', c => c.html(SNAPSHOT_PAGE))
+
+app.get('/api/playground-screenshot', async c => {
+  const url = c.req.query('url')
+  if (!url) return c.json({ error: '?url= parameter is required' }, 400)
+
+  try {
+    const apiUrl = `https://snapshot-api-production-1374.up.railway.app/screenshot?url=${encodeURIComponent(url)}&format=png`
+    const res = await fetch(apiUrl, {
+      headers: { 'Authorization': `Bearer ${DEMO_API_KEY}` },
+      signal: AbortSignal.timeout(15000),
+    })
+
+    if (!res.ok) {
+      const text = await res.text()
+      return c.json({ error: text || `API error: ${res.status}` }, res.status as any)
+    }
+
+    const buffer = await res.arrayBuffer()
+    const contentType = res.headers.get('content-type') || 'image/png'
+    return c.newResponse(buffer, 200, {
+      'Content-Type': contentType,
+      'Access-Control-Allow-Origin': '*',
+      'Cache-Control': 'public, max-age=3600',
+    })
+  } catch (err: any) {
+    return c.json({ error: `Screenshot failed: ${err.message}` }, 502)
+  }
 })
 
 const PORT = parseInt(process.env.PORT || '3000', 10)
