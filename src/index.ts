@@ -219,7 +219,7 @@ footer a:hover{color:var(--text-1)}
         <h3>CI/CD Visual Diff <span class="tag">ci</span></h3>
         <p>Capture staging after every deploy. Compare against prod to catch visual regressions before they ship.</p>
         <pre>curl "..." > staging-$(git rev-parse --short HEAD).png</pre>
-  <a href="https://github.com/marketplace/actions/snapshot-api-action" style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;font-family:var(--font-mono);font-size:12px;color:var(--cyan)">Or use the GitHub Action →</a>
+  <a href="https://github.com/bakasa/snapshot-action" style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;font-family:var(--font-mono);font-size:12px;color:var(--cyan)">Or use the GitHub Action →</a>
       </div>
       <div class="use-case">
         <h3>Price Monitoring <span class="tag">data</span></h3>
