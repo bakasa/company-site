@@ -110,6 +110,7 @@ footer a:hover{color:var(--text-1)}
     <div class="nav-links">
       <a href="/">Home</a>
       <a href="/playground">Playground</a>
+      <a href="/visual-diff">Visual Diff</a>
       <a href="/blog">Blog</a>
       <a href="https://github.com/bakasa/snapshot-api" target="_blank" rel="noopener">GitHub</a>
     </div>
@@ -218,6 +219,7 @@ footer a:hover{color:var(--text-1)}
         <h3>CI/CD Visual Diff <span class="tag">ci</span></h3>
         <p>Capture staging after every deploy. Compare against prod to catch visual regressions before they ship.</p>
         <pre>curl "..." > staging-$(git rev-parse --short HEAD).png</pre>
+  <a href="https://github.com/marketplace/actions/snapshot-api-action" style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;font-family:var(--font-mono);font-size:12px;color:var(--cyan)">Or use the GitHub Action →</a>
       </div>
       <div class="use-case">
         <h3>Price Monitoring <span class="tag">data</span></h3>
@@ -249,6 +251,443 @@ footer a:hover{color:var(--text-1)}
 </body>
 </html>`
 
+
+const VISUAL_DIFF_PAGE = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Visual Website Diff Tool — Compare Two Pages Side-by-Side</title>
+<meta name="description" content="Free visual website comparison tool. Enter two URLs and see a side-by-side diff of any two webpages. Powered by SnapShot API." />
+<link rel="canonical" href="${'https://company-site-production-9f58.up.railway.app'}/visual-diff" />
+<meta property="og:title" content="Visual Website Diff Tool — Compare Two Pages Side-by-Side" />
+<meta property="og:description" content="Free visual website comparison tool. Spot differences between any two webpages instantly." />
+<meta property="og:image" content="https://snapog-production.up.railway.app/preview?title=Visual+Website+Diff+Tool&description=Compare+any+two+pages+side+by+side&template=default&theme=dark" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0B0D12;--bg-alt:#11141D;--surface:#181C27;--surface-hover:#1F2433;--border:#242938;--border-light:#2E3444;--text-1:#EDEEF0;--text-2:#969CA8;--text-3:#545A68;--accent:#D97706;--accent-glow:rgba(217,119,6,0.15);--green:#22C55E;--cyan:#22D3EE;--magenta:#EC4899;--red:#EF4444;--font-sans:'DM Sans',system-ui,sans-serif;--font-mono:'DM Mono','SF Mono',monospace;--r:10px;--r-lg:16px}
+body{background:var(--bg);color:var(--text-1);font-family:var(--font-sans);font-size:16px;line-height:1.6;min-height:100vh}
+.bg-grid{position:fixed;inset:0;pointer-events:none;z-index:0;background-image:linear-gradient(rgba(255,255,255,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.02) 1px,transparent 1px);background-size:48px 48px}
+.container{position:relative;z-index:1;max-width:960px;margin:0 auto;padding:0 24px}
+nav{display:flex;align-items:center;justify-content:space-between;padding:28px 0;border-bottom:1px solid var(--border)}
+.logo{font-family:var(--font-mono);font-weight:500;font-size:18px;color:var(--text-1);text-decoration:none;letter-spacing:-0.02em}
+.logo span{color:var(--accent)}
+.nav-links{display:flex;gap:28px;align-items:center}
+.nav-links a{color:var(--text-2);text-decoration:none;font-size:14px;transition:color 0.15s}
+.nav-links a:hover{color:var(--text-1)}
+.nav-links a.active{color:var(--accent)}
+h1{font-size:32px;font-weight:700;letter-spacing:-0.03em;line-height:1.15;margin-bottom:8px}
+p{color:var(--text-2);margin-bottom:16px;line-height:1.65}
+.diff-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:32px;margin:32px 0}
+.input-row{display:flex;gap:12px;margin-bottom:20px;align-items:flex-end}
+.input-group{flex:1;display:flex;flex-direction:column;gap:6px}
+.input-group label{font-family:var(--font-mono);font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.06em}
+.input-group input{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:12px 16px;font-family:var(--font-sans);font-size:15px;color:var(--text-1);outline:none;transition:border-color 0.2s}
+.input-group input:focus{border-color:var(--accent)}
+.input-group input::placeholder{color:var(--text-3)}
+.input-group .url-label{font-family:var(--font-mono);font-size:11px;color:var(--text-3)}
+.btn-row{display:flex;gap:12px;align-items:flex-end}
+.btn{background:var(--accent);color:#0B0D12;border:none;border-radius:var(--r);padding:12px 28px;font-family:var(--font-sans);font-size:15px;font-weight:600;cursor:pointer;transition:background 0.15s,transform 0.1s;white-space:nowrap;display:inline-flex;align-items:center;gap:8px}
+.btn:hover{background:#F59E0B;transform:translateY(-1px)}
+.btn:disabled{opacity:0.5;cursor:not-allowed;transform:none}
+.btn-outline{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+.btn-outline:hover{background:var(--accent-glow)}
+.presets{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px}
+.preset-btn{background:transparent;border:1px solid var(--border);border-radius:var(--r);padding:8px 14px;font-family:var(--font-mono);font-size:12px;color:var(--text-2);cursor:pointer;transition:all 0.15s}
+.preset-btn:hover{border-color:var(--accent);color:var(--accent)}
+.spinner{display:none;text-align:center;padding:48px 0;color:var(--text-3)}
+.spinner.active{display:block}
+.spinner-dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--accent);animation:bounce 1.2s ease-in-out infinite}
+.spinner-dot:nth-child(2){animation-delay:0.2s;background:var(--cyan)}
+.spinner-dot:nth-child(3){animation-delay:0.4s}
+@keyframes bounce{0%,80%,100%{transform:scale(0.6);opacity:0.3}40%{transform:scale(1);opacity:1}}
+.error-box{background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);border-radius:var(--r);padding:16px;color:var(--red);font-size:14px;display:none;margin-top:16px}
+.error-box.visible{display:block}
+.result-area{display:none;margin-top:24px}
+.result-area.visible{display:block}
+.comparison{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+.image-panel{background:var(--bg-alt);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden}
+.image-panel .panel-header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:11px;color:var(--text-3)}
+.image-panel .panel-header .panel-label{color:var(--accent);font-weight:600}
+.image-panel img{width:100%;display:block}
+.diff-metrics{display:flex;gap:24px;justify-content:center;margin-bottom:24px;flex-wrap:wrap}
+.diff-metric{text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px 24px;min-width:140px}
+.diff-metric .metric-value{font-family:var(--font-mono);font-size:28px;font-weight:600;color:var(--text-1)}
+.diff-metric .metric-label{font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.06em;margin-top:4px}
+.diff-metric.high .metric-value{color:var(--red)}
+.diff-metric.medium .metric-value{color:var(--accent)}
+.diff-metric.low .metric-value{color:var(--green)}
+.slider-section{margin-top:24px;border-top:1px solid var(--border);padding-top:24px}
+.slider-section h3{font-size:14px;font-weight:600;margin-bottom:12px;color:var(--text-2)}
+.slider-container{position:relative;width:100%;overflow:hidden;border:1px solid var(--border);border-radius:var(--r);background:var(--bg-alt);cursor:ew-resize;user-select:none;touch-action:none;min-height:100px}
+.slider-container img{width:100%;display:block;pointer-events:none}
+.slider-container .slider-overlay{position:absolute;top:0;left:0;width:100%;height:100%;clip-path:inset(0 50% 0 0)}
+.slider-container .slider-handle{position:absolute;top:0;bottom:0;width:3px;background:var(--accent);cursor:ew-resize;z-index:10;left:50%;transform:translateX(-50%)}
+.slider-container .slider-handle::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:28px;height:28px;border-radius:50%;background:var(--accent);border:3px solid var(--bg)}
+.slider-container .slider-handle::after{content:'↔';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#0B0D12;font-size:14px;font-weight:700}
+.slider-labels{display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:10px;color:var(--text-3);margin-top:6px;padding:0 4px}
+.curl-box{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:16px 20px;margin-top:20px;font-family:var(--font-mono);font-size:13px;color:var(--green);overflow-x:auto;position:relative}
+.curl-box .copy-btn{position:absolute;top:10px;right:10px;background:var(--surface);border:1px solid var(--border);color:var(--text-2);padding:4px 10px;border-radius:4px;font-size:11px;cursor:pointer;font-family:var(--font-mono);transition:all 0.15s}
+.curl-box .copy-btn:hover{background:var(--surface-hover);color:var(--text-1)}
+.diff-canvas{display:none;width:100%;border:1px solid var(--border);border-radius:var(--r);margin-top:16px}
+.diff-mode-toggle{display:flex;gap:8px;margin-bottom:16px}
+.diff-mode-btn{background:transparent;border:1px solid var(--border);border-radius:var(--r);padding:8px 16px;font-family:var(--font-mono);font-size:12px;color:var(--text-2);cursor:pointer;transition:all 0.15s}
+.diff-mode-btn.active{border-color:var(--accent);color:var(--accent);background:var(--accent-glow)}
+.diff-mode-btn:hover{border-color:var(--accent)}
+footer{border-top:1px solid var(--border);padding:32px 0;display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--text-3);margin-top:60px}
+footer a{color:var(--text-2);text-decoration:none}
+footer a:hover{color:var(--text-1)}
+@media(max-width:720px){.comparison{grid-template-columns:1fr}.input-row{flex-direction:column}.btn-row{width:100%}.btn-row .btn{flex:1}.diff-metrics{gap:12px}.diff-metric{min-width:100px;padding:12px 16px}nav{flex-direction:column;gap:16px}h1{font-size:24px}.diff-box{padding:20px}}
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="container">
+<nav>
+  <a href="/" class="logo">Auto <span>Company</span></a>
+  <div class="nav-links">
+    <a href="/">Home</a>
+    <a href="/snapshot">SnapShot</a>
+    <a href="/playground">Playground</a>
+    <a href="/visual-diff" class="active">Visual Diff</a>
+    <a href="/blog">Blog</a>
+    <a href="https://github.com/bakasa" target="_blank" rel="noopener">GitHub</a>
+  </div>
+</nav>
+
+<div style="margin:48px 0 0">
+  <h1>Visual Website Diff Tool</h1>
+  <p>Compare any two webpages side by side. Spot visual differences instantly — powered by <a href="/snapshot" style="color:var(--accent)">SnapShot API</a>. No API key needed.</p>
+
+  <div class="diff-box">
+    <div class="presets">
+      <button class="preset-btn" onclick="setPreset('https://news.ycombinator.com','https://news.ycombinator.com/newest')">HN: front vs new</button>
+      <button class="preset-btn" onclick="setPreset('https://example.com','https://example.com')">Example: same page</button>
+      <button class="preset-btn" onclick="setPreset('https://github.com/bakasa/snapshot-api','https://github.com/bakasa/reqdump')">SnapShot vs ReqDump</button>
+      <button class="preset-btn" onclick="setPreset('https://www.wikipedia.org','https://en.wikipedia.org')">Wikipedia: main vs EN</button>
+    </div>
+    <div class="input-row">
+      <div class="input-group">
+        <label>URL A (Control)</label>
+        <input type="url" id="urlA" placeholder="https://example.com" value="https://news.ycombinator.com" autofocus />
+      </div>
+      <div class="input-group">
+        <label>URL B (Changed)</label>
+        <input type="url" id="urlB" placeholder="https://example.com/v2" value="https://news.ycombinator.com/newest" />
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn" id="compareBtn" onclick="compare()">Compare Pages</button>
+      <button class="btn btn-outline" onclick="swapUrls()">Swap URLs</button>
+    </div>
+
+    <div class="spinner" id="spinner">
+      <span class="spinner-dot"></span>
+      <span class="spinner-dot"></span>
+      <span class="spinner-dot"></span>
+      <div style="margin-top:16px;color:var(--text-3);font-size:14px">Capturing both pages...</div>
+    </div>
+
+    <div class="error-box" id="errorBox"></div>
+
+    <div class="result-area" id="resultArea">
+      <div class="diff-mode-toggle">
+        <button class="diff-mode-btn active" data-mode="side" onclick="setMode('side')">Side by Side</button>
+        <button class="diff-mode-btn" data-mode="slider" onclick="setMode('slider')">Slider</button>
+        <button class="diff-mode-btn" data-mode="diff" onclick="setMode('diff')">Pixel Diff</button>
+      </div>
+
+      <div id="sideView">
+        <div class="comparison" id="comparison">
+          <div class="image-panel">
+            <div class="panel-header"><span class="panel-label">URL A</span><span id="dimA"></span></div>
+            <img id="imgA" alt="Screenshot of URL A" />
+          </div>
+          <div class="image-panel">
+            <div class="panel-header"><span class="panel-label">URL B</span><span id="dimB"></span></div>
+            <img id="imgB" alt="Screenshot of URL B" />
+          </div>
+        </div>
+      </div>
+
+      <div id="sliderView" style="display:none">
+        <div class="slider-section">
+          <h3>Drag the slider to compare</h3>
+          <div class="slider-container" id="sliderContainer">
+            <img id="sliderBase" alt="URL A (base)" />
+            <div class="slider-overlay" id="sliderOverlayWrap">
+              <img id="sliderOverlay" alt="URL B (overlay)" style="display:block;width:100%" />
+            </div>
+            <div class="slider-handle" id="sliderHandle"></div>
+          </div>
+          <div class="slider-labels"><span>URL A</span><span>URL B</span></div>
+        </div>
+      </div>
+
+      <div id="diffView" style="display:none">
+        <div class="slider-section">
+          <h3>Pixel Difference Map <span style="font-weight:400;color:var(--text-3);font-size:12px">— magenta pixels differ</span></h3>
+          <canvas id="diffCanvas" class="diff-canvas"></canvas>
+        </div>
+      </div>
+
+      <div class="diff-metrics" id="metrics">
+        <div class="diff-metric" id="metricResolution"><div class="metric-value" id="resValue">-</div><div class="metric-label">Resolution</div></div>
+        <div class="diff-metric" id="metricDiff"><div class="metric-value" id="diffValue">-</div><div class="metric-label">Difference</div></div>
+        <div class="diff-metric" id="metricPixels"><div class="metric-value" id="pixelValue">-</div><div class="metric-label">Pixels Changed</div></div>
+      </div>
+
+      <div class="curl-box">
+        <button class="copy-btn" onclick="copyCurl()">Copy</button>
+        <code id="curlCommand"># Compare two pages programmatically:
+curl -o page-a.png "https://snapshot-api-production-1374.up.railway.app/screenshot?url=URL_A&key=YOUR_KEY"
+curl -o page-b.png "https://snapshot-api-production-1374.up.railway.app/screenshot?url=URL_B&key=YOUR_KEY"
+# Then use ImageMagick to diff:
+compare page-a.png page-b.png diff.png</code>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <span>&copy; 2026 Auto Company</span>
+  <div style="display:flex;align-items:center;gap:20px">
+    <a href="/snapshot">SnapShot API &rarr;</a>
+  </div>
+</footer>
+</div>
+
+<script>
+const API_BASE = 'https://company-site-production-9f58.up.railway.app';
+const URL_A = document.getElementById('urlA');
+const URL_B = document.getElementById('urlB');
+const COMPARISON = document.getElementById('comparison');
+const IMG_A = document.getElementById('imgA');
+const IMG_B = document.getElementById('imgB');
+const DIM_A = document.getElementById('dimA');
+const DIM_B = document.getElementById('dimB');
+const SLIDER_BASE = document.getElementById('sliderBase');
+const SLIDER_OVERLAY = document.getElementById('sliderOverlay');
+const SLIDER_OVERLAY_WRAP = document.getElementById('sliderOverlayWrap');
+const SLIDER_HANDLE = document.getElementById('sliderHandle');
+const SLIDER_CONTAINER = document.getElementById('sliderContainer');
+const DIFF_CANVAS = document.getElementById('diffCanvas');
+const DIFF_VALUE = document.getElementById('diffValue');
+const PIXEL_VALUE = document.getElementById('pixelValue');
+const RES_VALUE = document.getElementById('resValue');
+const SPINNER = document.getElementById('spinner');
+const ERROR_BOX = document.getElementById('errorBox');
+const RESULT_AREA = document.getElementById('resultArea');
+const SIDE_VIEW = document.getElementById('sideView');
+const SLIDER_VIEW = document.getElementById('sliderView');
+const DIFF_VIEW = document.getElementById('diffView');
+const BTN = document.getElementById('compareBtn');
+const CURL_CMD = document.getElementById('curlCommand');
+
+let imgDataA = null, imgDataB = null;
+let currentMode = 'side';
+
+function setPreset(a, b) {
+  URL_A.value = a;
+  URL_B.value = b;
+  compare();
+}
+
+function swapUrls() {
+  const tmp = URL_A.value;
+  URL_A.value = URL_B.value;
+  URL_B.value = tmp;
+  if (RESULT_AREA.classList.contains('visible')) compare();
+}
+
+function showError(msg) {
+  ERROR_BOX.textContent = msg;
+  ERROR_BOX.classList.add('visible');
+}
+
+function hideError() {
+  ERROR_BOX.textContent = '';
+  ERROR_BOX.classList.remove('visible');
+}
+
+function setMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll('.diff-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  SIDE_VIEW.style.display = mode === 'side' ? 'block' : 'none';
+  SLIDER_VIEW.style.display = mode === 'slider' ? 'block' : 'none';
+  DIFF_VIEW.style.display = mode === 'diff' ? 'block' : 'none';
+  if (mode === 'diff' && imgDataA && imgDataB) computeDiff();
+  if (mode === 'slider' && imgDataA && imgDataB) initSlider();
+}
+
+async function fetchScreenshot(url) {
+  if (!url.startsWith('http://') && !url.startsWith('https://')) url = 'https://' + url;
+  const r = await fetch(API_BASE + '/api/playground-screenshot?url=' + encodeURIComponent(url));
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({ error: r.statusText }));
+    throw new Error(err.error || 'Request failed (' + r.status + ')');
+  }
+  return r.blob();
+}
+
+function loadImage(blob) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Failed to decode image'));
+    img.src = URL.createObjectURL(blob);
+  });
+}
+
+function formatNum(n) {
+  return n >= 1000000 ? (n/1000000).toFixed(1) + 'M' : n >= 1000 ? (n/1000).toFixed(1) + 'K' : n.toLocaleString();
+}
+
+async function compare() {
+  const urlA = URL_A.value.trim();
+  const urlB = URL_B.value.trim();
+  if (!urlA || !urlB) { showError('Please enter both URLs'); return; }
+
+  hideError();
+  RESULT_AREA.classList.remove('visible');
+  SPINNER.classList.add('active');
+  BTN.disabled = true;
+  BTN.textContent = 'Comparing...';
+
+  try {
+    const [blobA, blobB] = await Promise.all([fetchScreenshot(urlA), fetchScreenshot(urlB)]);
+    const [imgA, imgB] = await Promise.all([loadImage(blobA), loadImage(blobB)]);
+
+    imgDataA = imgA;
+    imgDataB = imgB;
+
+    IMG_A.src = imgA.src;
+    IMG_B.src = imgB.src;
+    DIM_A.textContent = imgA.naturalWidth + 'x' + imgA.naturalHeight;
+    DIM_B.textContent = imgB.naturalWidth + 'x' + imgB.naturalHeight;
+
+    SLIDER_BASE.src = imgA.src;
+    SLIDER_OVERLAY.src = imgB.src;
+
+    RES_VALUE.textContent = imgA.naturalWidth + 'x' + imgA.naturalHeight;
+    if (imgA.naturalWidth === imgB.naturalWidth && imgA.naturalHeight === imgB.naturalHeight) {
+      RES_VALUE.textContent = imgA.naturalWidth + 'x' + imgA.naturalHeight;
+    } else {
+      RES_VALUE.textContent = imgA.naturalWidth + 'x' + imgA.naturalHeight + ' vs ' + imgB.naturalWidth + 'x' + imgB.naturalHeight;
+    }
+
+    CURL_CMD.textContent = '# Compare two pages programmatically:\ncurl -o page-a.png "' + API_BASE.replace('/visual-diff','') + '/screenshot?url=' + encodeURIComponent(urlA) + '&key=YOUR_KEY"\ncurl -o page-b.png "' + API_BASE.replace('/visual-diff','') + '/screenshot?url=' + encodeURIComponent(urlB) + '&key=YOUR_KEY"\n# Then use ImageMagick to diff:\ncompare page-a.png page-b.png diff.png';
+
+    RESULT_AREA.classList.add('visible');
+    setMode('side');
+    initSlider();
+  } catch (e) {
+    showError(e.message);
+  } finally {
+    SPINNER.classList.remove('active');
+    BTN.disabled = false;
+    BTN.textContent = 'Compare Pages';
+  }
+}
+
+function initSlider() {
+  if (!imgDataA || !imgDataB) return;
+  SLIDER_CONTAINER.style.aspectRatio = imgDataA.naturalWidth + '/' + imgDataA.naturalHeight;
+  const moveSlider = (x) => {
+    const rect = SLIDER_CONTAINER.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(100, ((x - rect.left) / rect.width) * 100));
+    SLIDER_OVERLAY_WRAP.style.clipPath = 'inset(0 ' + (100 - pct) + '% 0 0)';
+    SLIDER_HANDLE.style.left = pct + '%';
+  };
+
+  const onMove = (e) => {
+    const x = e.type.startsWith('touch') ? e.touches[0].clientX : e.clientX;
+    moveSlider(x);
+  };
+
+  const onDown = (e) => {
+    e.preventDefault();
+    const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); document.removeEventListener('touchmove', onMove); document.removeEventListener('touchend', onUp); };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.addEventListener('touchmove', onMove, { passive: true });
+    document.addEventListener('touchend', onUp);
+    onMove(e);
+  };
+
+  SLIDER_CONTAINER.addEventListener('mousedown', onDown);
+  SLIDER_CONTAINER.addEventListener('touchstart', onDown, { passive: true });
+  moveSlider(SLIDER_CONTAINER.getBoundingClientRect().left + SLIDER_CONTAINER.offsetWidth / 2);
+}
+
+function computeDiff() {
+  if (!imgDataA || !imgDataB) return;
+
+  const w = Math.max(imgDataA.naturalWidth, imgDataB.naturalWidth);
+  const h = Math.max(imgDataA.naturalHeight, imgDataB.naturalHeight);
+
+  DIFF_CANVAS.style.display = 'block';
+  DIFF_CANVAS.width = w;
+  DIFF_CANVAS.height = h;
+  DIFF_CANVAS.style.maxWidth = '100%';
+  DIFF_CANVAS.style.height = 'auto';
+
+  const ctx = DIFF_CANVAS.getContext('2d');
+
+  const cA = document.createElement('canvas');
+  cA.width = w; cA.height = h;
+  const ctxA = cA.getContext('2d');
+  ctxA.drawImage(imgDataA, 0, 0);
+
+  const cB = document.createElement('canvas');
+  cB.width = w; cB.height = h;
+  const ctxB = cB.getContext('2d');
+  ctxB.drawImage(imgDataB, 0, 0);
+
+  const dA = ctxA.getImageData(0, 0, w, h);
+  const dB = ctxB.getImageData(0, 0, w, h);
+  const diff = ctx.createImageData(w, h);
+  const data = diff.data;
+
+  let changed = 0;
+  const total = w * h;
+
+  for (let i = 0; i < total; i++) {
+    const idx = i * 4;
+    const r1 = dA.data[idx], g1 = dA.data[idx+1], b1 = dA.data[idx+2];
+    const r2 = dB.data[idx], g2 = dB.data[idx+1], b2 = dB.data[idx+2];
+
+    if (Math.abs(r1 - r2) > 10 || Math.abs(g1 - g2) > 10 || Math.abs(b1 - b2) > 10) {
+      data[idx] = 236; data[idx+1] = 72; data[idx+2] = 153; data[idx+3] = 255;
+      changed++;
+    } else {
+      data[idx] = r1; data[idx+1] = g1; data[idx+2] = b1; data[idx+3] = 200;
+    }
+  }
+
+  ctx.putImageData(diff, 0, 0);
+
+  const pct = (changed / total * 100);
+  PIXEL_VALUE.textContent = formatNum(changed);
+  DIFF_VALUE.textContent = pct < 0.1 ? '<0.1%' : pct.toFixed(1) + '%';
+
+  const metric = document.getElementById('metricDiff');
+  metric.className = 'diff-metric' + (pct > 5 ? ' high' : pct > 0.5 ? ' medium' : ' low');
+}
+
+async function copyCurl() {
+  try {
+    await navigator.clipboard.writeText(CURL_CMD.textContent.replace(/^#.*\n/, '').trim());
+  } catch {}
+}
+
+compare();
+</script>
+</body>
+</html>`
 
 const OG_TITLE = 'Auto Company — Build tools. Ship products.'
 const OG_DESC = 'Auto Company builds developer tools and content creation products. Live service dashboard.'
@@ -424,6 +863,44 @@ https://snapshot-api-production-1374.up.railway.app/?ref=YOUR_CODE</pre>
 `
   },
   {
+    slug: 'snapshot-github-action-ci-screenshots',
+    title: 'Automated Website Screenshots in GitHub CI/CD — Introducing the SnapShot API Action',
+    excerpt: 'Capture website screenshots directly in your GitHub Actions workflows with zero setup. A new composite action that brings SnapShot API into your CI pipeline.',
+    date: '2026-07-22',
+    tags: ['github-actions', 'ci-cd', 'screenshots', 'automation'],
+    content: `
+<h2>Screenshots in CI, Finally</h2>
+<p>We just shipped a <a href="https://github.com/bakasa/snapshot-action">GitHub Action</a> for <a href="https://snapshot-api-production-1374.up.railway.app">SnapShot API</a> — now you can capture website screenshots directly in your GitHub Actions workflows.</p>
+<pre>jobs:
+  screenshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: bakasa/snapshot-action@v1
+        with:
+          api_key: \${{ secrets.SS_API_KEY }}
+          url: https://example.com
+          output: screenshot.png</pre>
+<p>The action automatically uploads the screenshot as a workflow artifact, so you can download it, compare it, or archive it.</p>
+<h2>Why a GitHub Action?</h2>
+<p>Most screenshot APIs make you write the HTTP wrapper yourself — curl, handle auth, save the file, upload the artifact. This action handles all of that in under 50 lines.</p>
+<p>Just set your API key as a secret, pick a URL, and the action returns a PNG.</p>
+<h2>Use in Visual Regression</h2>
+<p>Pair it with the <a href="https://company-site-production-9f58.up.railway.app/visual-diff">Visual Diff tool</a>: capture your staging site on every deploy, then diff against the production baseline.</p>
+<h2>Get Started</h2>
+<pre># Get a free API key
+curl https://snapshot-api-production-1374.up.railway.app/key
+
+# Add SS_API_KEY to your repo secrets
+# Then add to your workflow:
+- uses: bakasa/snapshot-action@v1
+  with:
+    api_key: \${{ secrets.SS_API_KEY }}
+    url: https://your-staging.com
+    output: staging-\${{ github.sha }}.png</pre>
+<p>Full docs on the <a href="https://github.com/bakasa/snapshot-action">GitHub repo</a>.</p>
+`
+  },
+  {
     slug: 'webhook-idempotency-duplicate-events',
     title: 'Webhook Idempotency: How to Handle Duplicate Events Without Breaking Your System',
     excerpt: 'Webhooks are delivered with at-least-once semantics. Here\'s how to build idempotent handlers that safely process the same event multiple times.',
@@ -472,6 +949,104 @@ https://snapshot-api-production-1374.up.railway.app/?ref=YOUR_CODE</pre>
 <p>Three routes: create bin, capture request, view dashboard.</p>
 <p>The entire server is ~500 lines of TypeScript in a single file.</p>
 <p><a href="https://reqdump-production.up.railway.app">Try reqdump</a></p>
+`
+  },
+  {
+    slug: 'automated-website-change-monitoring',
+    title: 'How to Monitor Website Changes with Automated Screenshots (No Signup)',
+    excerpt: 'Set up free visual website monitoring with cron and a screenshot API. Get alerts when pages change — no account required.',
+    date: '2026-07-22',
+    tags: ['tutorial', 'monitoring', 'screenshots', 'automation', 'ci-cd'],
+    content: `
+<h2>Why Visual Monitoring?</h2>
+<p>Most monitoring tools check if a server responds (ping) or if a keyword exists (text match). But what if your dashboard renders wrong data, your pricing page has a layout shift, or a competitor changed their product image? These are visual changes — and they need visual monitoring.</p>
+<p>A screenshot API like <a href="https://snapshot-api-production-1374.up.railway.app">SnapShot API</a> makes this trivial: take a screenshot on a schedule, diff it against the last capture, and you have free visual regression detection.</p>
+<h2>What You'll Build</h2>
+<p>A zero-cost monitoring script that:</p>
+<ul>
+<li>Captures a website screenshot every hour via cron</li>
+<li>Saves each screenshot with a timestamp</li>
+<li>Compares with the previous capture</li>
+<li>Alerts you if the page changed visually</li>
+</ul>
+<h2>Step 1: Get an API Key</h2>
+<pre>curl https://snapshot-api-production-1374.up.railway.app/key</pre>
+<p>Save the <code>key</code> value from the JSON response. No email, no signup — it's instant.</p>
+<h2>Step 2: Write the Monitor Script</h2>
+<p>Create a file called <code>monitor.sh</code>:</p>
+<pre>#!/bin/bash
+SNAPSHOT_KEY="YOUR_KEY"
+URL="https://example.com"
+DIR="./snapshots"
+mkdir -p "$DIR"
+TS=$(date +%Y%m%d%H%M)
+FILE="$DIR/snapshot-$TS.png"
+curl -s -o "$FILE" \\
+  "https://snapshot-api-production-1374.up.railway.app/screenshot?url=$URL&key=$SNAPSHOT_KEY"
+echo "Saved: $FILE"</pre>
+<h2>Step 3: Set Up a Cron Job</h2>
+<pre># Run every hour
+0 * * * * /path/to/monitor.sh</pre>
+<h2>Step 4: Detect Changes</h2>
+<p>Add a simple ImageMagick comparison to your script:</p>
+<pre>PREV=$(ls -t "$DIR"/*.png | head -2 | tail -1)
+CURR=$(ls -t "$DIR"/*.png | head -1)
+if [ -n "$PREV" ] && [ -n "$CURR" ]; then
+  DIFF=$(compare -metric AE "$PREV" "$CURR" /dev/null 2>&1)
+  if [ "$DIFF" -gt 1000 ]; then
+    echo "Change detected! ($DIFF pixels differ)"
+    # Send alert (email, Slack, etc.)
+  fi
+fi</pre>
+<h2>Use Cases</h2>
+<h3>Competitor Monitoring</h3>
+<p>Track when competitors change pricing, features, or landing pages. Get screenshots archived daily.</p>
+<h3>Dashboard Reliability</h3>
+<p>Verify your dashboards render correctly after every deploy. Catch blank pages or broken charts before users do.</p>
+<h3>CI/CD Visual Regression</h3>
+<p>Add a screenshot step to your deployment pipeline. Reject deploys that change critical pages visually.</p>
+<pre># GitHub Actions step
+- name: Capture staging
+  run: curl -s -o staging.png "https://snapshot-api-production-1374.up.railway.app/screenshot?url=https://staging.example.com&key=$KEY"</pre>
+<h2>Limitations &amp; Next Steps</h2>
+<p>This basic approach works for small-scale monitoring. For production use, consider:</p>
+<ul>
+<li><strong>PixelDiff</strong> — a proper diff library with threshold tuning</li>
+<li><strong>Database-backed history</strong> — store metadata and diffs per page</li>
+<li><strong>Alert integrations</strong> — Slack webhook, PagerDuty, email</li>
+<li><strong>Twice-daily cadence</strong> — or higher frequency on Pro ($15/mo for 1,000 captures)</li>
+</ul>
+<p>Start monitoring <strong>right now</strong> — get your API key at <a href="https://snapshot-api-production-1374.up.railway.app">snapshot-api-production-1374.up.railway.app</a> or <a href="https://company-site-production-9f58.up.railway.app/playground">try it in the playground</a>.</p>
+`
+  },
+  {
+    slug: 'visual-website-diff-tool',
+    title: 'Introducing the Visual Website Diff Tool — Compare Any Two Pages Side-by-Side',
+    excerpt: 'A new free tool to compare any two webpages visually. Spot layout changes, content differences, and design regressions instantly — no account required.',
+    date: '2026-07-22',
+    tags: ['tool', 'screenshots', 'visual-diff', 'testing'],
+    content: `
+<h2>Spot Visual Differences Instantly</h2>
+<p>We just shipped a <a href="/visual-diff">free visual website diff tool</a> — enter two URLs and see them side by side, with a pixel-level difference map and an interactive slider overlay. No signup, no API key, no account.</p>
+<p>It's built on top of <a href="/snapshot">SnapShot API</a>, our screenshot-as-a-service that gives you instant API keys via curl.</p>
+<h2>Three Ways to Compare</h2>
+<p>The tool offers three comparison modes:</p>
+<h3>Side by Side</h3>
+<p>Both pages rendered at full width with their dimensions displayed. Useful for a quick visual scan.</p>
+<h3>Interactive Slider</h3>
+<p>A before/after slider overlay. Drag left and right to reveal one page underneath the other. This is the most natural way to spot layout shifts, missing elements, or content changes.</p>
+<h3>Pixel Difference Map</h3>
+<p>An automated diff that highlights every changed pixel in magenta. Screens that are identical will show no magenta at all — a powerful check for CI/CD visual regression testing.</p>
+<p>The tool also computes a difference percentage and total changed pixel count.</p>
+<h2>Use It in CI/CD</h2>
+<p>The curl command at the bottom of the page shows the programmatic equivalent:</p>
+<pre>curl -o staging.png "https://snapshot-api-production-1374.up.railway.app/screenshot?url=https://staging.example.com&key=YOUR_KEY"
+curl -o prod.png "https://snapshot-api-production-1374.up.railway.app/screenshot?url=https://prod.example.com&key=YOUR_KEY"
+compare staging.png prod.png diff.png</pre>
+<p>Drop this into your GitHub Actions or CI pipeline and reject deploys that exceed a pixel-diff threshold.</p>
+<h2>Built with SnapShot API</h2>
+<p>Each comparison fetches two screenshots via the SnapShot API playground endpoint — the same API you can call directly with your own key for production workloads.</p>
+<p>Get your free API key at <a href="https://snapshot-api-production-1374.up.railway.app">snapshot-api-production-1374.up.railway.app</a> or <a href="/visual-diff">try the visual diff tool now</a>.</p>
 `
   }
 ]
@@ -938,11 +1513,12 @@ app.get('/sitemap.xml', c => {
     { loc: `${SITE_URL}/#services`, priority: '0.8', changefreq: 'weekly' },
     { loc: `${SITE_URL}/snapshot`, priority: '0.9', changefreq: 'weekly' },
     { loc: `${SITE_URL}/playground`, priority: '0.8', changefreq: 'weekly' },
+    { loc: `${SITE_URL}/visual-diff`, priority: '0.8', changefreq: 'weekly' },
     { loc: `${SITE_URL}/blog`, priority: '0.7', changefreq: 'weekly' },
     ...BLOG_POSTS.map(p => ({ loc: `${SITE_URL}/blog/${p.slug}`, priority: '0.6', changefreq: 'monthly' })),
   ]
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.w3.org/2000/svg">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urls.map(u => `  <url>
     <loc>${u.loc}</loc>
     <priority>${u.priority}</priority>
@@ -1181,6 +1757,8 @@ capture();
 })
 
 app.get('/snapshot', c => c.html(SNAPSHOT_PAGE))
+
+app.get('/visual-diff', c => c.html(VISUAL_DIFF_PAGE))
 
 app.get('/api/playground-screenshot', async c => {
   const url = c.req.query('url')
